@@ -30,19 +30,25 @@ Despite its lightweight design, DeepGEMM's performance matches or exceeds expert
 - Compilers and standard libraries with C++20 `<format>` support
 - CUDA Toolkit 12.9 or higher
 - PyTorch 2.3 or higher
-- CUTLASS 4.0 or higher (could be cloned by Git submodule)
+- CUTLASS and DeepJIT (pinned sources included under `third-party/` in this branch)
 
 ### Development
 
 ```bash
-# Submodule must be cloned
-git clone --recursive git@github.com:deepseek-ai/DeepGEMM.git
+# This branch includes its dependency sources; no GitHub submodule fetch is needed.
+git clone --branch 0.2.2-sm90-megamoe https://code.alipay.com/csy512356/DeepGEMM.git
 cd DeepGEMM
 
 # Link some essential includes and build the C++ extension
 cat develop.sh
 ./develop.sh
 ```
+
+For this branch's SM90 W4A8 SGLang integration, use `bash build_sgl_deep_gemm.sh`
+to build the TVM-FFI `sgl-deep-gemm` wheel; the root `develop.sh` builds the
+separate pybind distribution. Dependency versions and offline-source details
+are recorded in [third-party/README.md](third-party/README.md) and
+[SM90_W4A8_PORT.md](SM90_W4A8_PORT.md).
 
 ### Installation
 

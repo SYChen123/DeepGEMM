@@ -75,6 +75,12 @@ to v0.2.2. Existing FP8/FP4, BF16 and SM90 FP8 native FFI function bodies and
 signatures are unchanged. The full old public positional parameter list and
 defaults are retained, and `weight_layout` is forwarded to the SM100 path.
 
+An offline-source follow-up replaces the CUTLASS/DeepJIT gitlinks with ordinary
+tracked files from those exact commits, preserving both upstream Git trees.
+See `third-party/vendor_manifest.json` and `third-party/README.md`. The earlier
+gitlink-preservation check describes the kernel-port commit, before this
+separately requested source-vendoring change.
+
 After a separate GPU-validation task, build the TVM distribution on Linux CUDA
 and run at least `test_mega_moe_fp4_hopper.py`, `test_mega_moe_hopper.py`, existing
 block32 FP8 GEMM tests and the SM100 TRT-LLM regression tests on their respective
