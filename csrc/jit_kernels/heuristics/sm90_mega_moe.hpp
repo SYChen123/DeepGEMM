@@ -402,7 +402,9 @@ static MegaMoESM90Config get_mega_moe_config_sm90_fp4(
     const bool fp4_split_n_eligible =
         block_m == 64 and block_n % 128 == 0;
     const bool fp4_split_n_shape_band =
-        fp4_flash_or_pro_shape and
+        // swapAB needs two split-N math warpgroups regardless of model width.
+        // In particular, V4.1-Flash I=2304 falls between the older shape bands.
+        (fp4_flash_or_pro_shape or use_swap_ab) and
         expected_tokens_per_expert > 0.0f and
         not is_fp4_sm90_prefill_band(expected_tokens_per_expert, use_situ);
     if (fp4_split_n_eligible and fp4_split_n_shape_band) {
@@ -414,6 +416,9 @@ static MegaMoESM90Config get_mega_moe_config_sm90_fp4(
                     block_n % fp4_num_epilogue_warpgroups == 0 and
                     (block_n / fp4_num_epilogue_warpgroups) >= 64));
     const int fp4_num_epilogue_threads = fp4_num_epilogue_warpgroups * 128;
+    DG_HOST_ASSERT(not use_swap_ab or
+                   (block_m == 64 and block_n == 128 and
+                    fp4_num_epilogue_threads == 256));
     const int cluster_size = 1;
     const int num_max_pool_tokens = layout::get_num_max_pool_tokens(
         num_ranks, num_max_tokens_per_rank, num_topk, num_experts_per_rank);

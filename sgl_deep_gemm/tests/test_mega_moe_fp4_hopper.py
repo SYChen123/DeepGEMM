@@ -611,6 +611,20 @@ _SMOKE = dict(
 def _layer1_smoke(num_ranks: int) -> List[Tuple[str, Dict[str, Any]]]:
     return [
         ('L1.smoke', dict(_SMOKE)),
+        # Match V4.1-Flash routing densities with a small hidden/expert count.
+        # I=2304 used to request swapAB but silently run the non-swap kernel.
+        ('L1.v41_flash_swapab_verify', dict(
+            hidden=512, intermediate_hidden=2304,
+            num_experts=8 * num_ranks, num_topk=6,
+            num_max_tokens_per_rank=128, num_tokens=8,
+            masked_ratio=0.25, num_launch_repeats=3,
+        )),
+        ('L1.v41_flash_swapab_draft', dict(
+            hidden=512, intermediate_hidden=2304,
+            num_experts=8 * num_ranks, num_topk=3,
+            num_max_tokens_per_rank=128, num_tokens=20,
+            input_pattern='sfa_poison', num_launch_repeats=3,
+        )),
         ('L1.kimi_k3_situ_smoke', dict(
             num_max_tokens_per_rank=8,
             num_tokens=8,

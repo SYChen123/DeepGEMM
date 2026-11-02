@@ -499,6 +499,8 @@ sm90_fp8_fp4_mega_moe_impl(void* y,
     constexpr bool kSwapABEligible =
         kFP4SwapAB and kSplitNWarpgroups and (BLOCK_M == 64) and (BLOCK_N == 128)
         and (kWarpgroupSplitN == 2) and (not kFP4SSNSplit);
+    DG_STATIC_ASSERT(not kFP4SwapAB or kSwapABEligible,
+                     "Requested swapAB requires BM64/BN128, two split-N math warpgroups, and no SS N-split");
     constexpr bool kSwapABL1Active = kSwapABEligible;
     constexpr bool kSwapABL2Active = kSwapABEligible;
     // Flash b4 is assigned a distinct epw16 kernel. Keep one intermediate
