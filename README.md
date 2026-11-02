@@ -26,10 +26,12 @@ Despite its lightweight design, DeepGEMM's performance matches or exceeds expert
 ### Requirements
 
 - NVIDIA SM90 or SM100 architecture GPU
-- Python 3.8 or higher
+- Python 3.10 or higher for the TVM-FFI distribution
 - Compilers and standard libraries with C++20 `<format>` support
 - CUDA Toolkit 12.9 or higher
 - PyTorch 2.3 or higher
+- elfutils development headers (`libdw-dev` on Debian/Ubuntu, including `libelf-dev`)
+- Python build tools (`build`, `setuptools>=77`, `wheel`) and `apache-tvm-ffi==0.1.11`
 - CUTLASS and DeepJIT (pinned sources included under `third-party/` in this branch)
 
 ### Development
@@ -39,14 +41,16 @@ Despite its lightweight design, DeepGEMM's performance matches or exceeds expert
 git clone --branch 0.2.2-sm90-megamoe https://code.alipay.com/csy512356/DeepGEMM.git
 cd DeepGEMM
 
-# Link some essential includes and build the C++ extension
+# Build the TVM-FFI sgl-deep-gemm wheel using the active Python environment
 cat develop.sh
 ./develop.sh
 ```
 
-For this branch's SM90 W4A8 SGLang integration, use `bash build_sgl_deep_gemm.sh`
-to build the TVM-FFI `sgl-deep-gemm` wheel; the root `develop.sh` builds the
-separate pybind distribution. Dependency versions and offline-source details
+For this branch's SM90 W4A8 SGLang integration, `develop.sh` delegates to
+`build_sgl_deep_gemm.sh`, and `install.sh` installs the resulting TVM-FFI
+`sgl-deep-gemm` wheel with the active interpreter's pip, without replacing
+its Python dependencies. These scripts do not build the separate root pybind
+distribution. Dependency versions and offline-source details
 are recorded in [third-party/README.md](third-party/README.md) and
 [SM90_W4A8_PORT.md](SM90_W4A8_PORT.md).
 
@@ -58,6 +62,9 @@ cat install.sh
 ```
 
 Then, import `deep_gemm` in your Python project, and enjoy!
+When checking the installed wheel from this repository's root, use
+`python -I -c 'import deep_gemm; print(deep_gemm.__file__)'` to avoid importing
+the separate source-tree pybind package through the current directory.
 
 ## Interfaces
 

@@ -16,7 +16,7 @@
 
 set -euo pipefail
 
-PYTHON_EXE=$(which python3 || which python)
+PYTHON_EXE=${PYTHON:-python}
 ROOT_DIR=$(realpath "$(dirname "$0")")
 BUILD_DIR="${ROOT_DIR}/build"
 PKG_DIR="${BUILD_DIR}/deep_gemm"
@@ -28,6 +28,14 @@ if [[ ! -f "setup.py" || ! -d "sgl_deep_gemm" || ! -d "deep_gemm" || ! -d "csrc"
     echo "Error: Run from the DeepGEMM project root." >&2
     exit 1
 fi
+
+echo "--- Checking compiler and Python build dependencies ---"
+if ! printf '#include <elfutils/libdwfl.h>\n#include <format>\n' | \
+    "${CXX:-c++}" -std=c++20 -x c++ -fsyntax-only -; then
+    echo "Error: DeepJIT requires elfutils development headers (libdw-dev on Ubuntu) and a C++20 compiler with <format> support." >&2
+    exit 1
+fi
+"$PYTHON_EXE" -c 'import build, setuptools, wheel, torch, tvm_ffi.cpp'
 
 echo "--- Checking vendored dependency headers ---"
 for dependency_header in \
@@ -155,12 +163,9 @@ shutil.rmtree(build_subdir, ignore_errors=True)
 print(f"Built {target}")
 PY
 
-echo "--- Installing build frontend ---"
-"$PYTHON_EXE" -m pip install --quiet --upgrade build
-
 echo "--- Building wheel ---"
 mkdir -p "$DIST_DIR"
-"$PYTHON_EXE" -m build --wheel "$BUILD_DIR" --outdir "$DIST_DIR"
+"$PYTHON_EXE" -m build --wheel --no-isolation "$BUILD_DIR" --outdir "$DIST_DIR"
 
 echo "--- Done ---"
 ls -lh "$DIST_DIR"/sgl_deep_gemm-*.whl 2>/dev/null || ls -lh "$DIST_DIR"/sgl-deep-gemm-*.whl 2>/dev/null || ls -lh "$DIST_DIR"/sgl_deep_gemm*.whl
