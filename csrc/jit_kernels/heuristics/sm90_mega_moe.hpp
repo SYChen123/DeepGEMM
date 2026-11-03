@@ -395,7 +395,9 @@ static MegaMoESM90Config get_mega_moe_config_sm90_fp4(
         static_cast<float>(num_tokens) * num_topk / num_experts_per_rank;
     const int block_n = 128;
     int fp4_num_epilogue_warpgroups = num_epilogue_threads / 128;
-    const bool fp4_flash_shape = intermediate_hidden <= 2048;
+    // V4.1-Flash also needs split-N in the non-swap decode band (20 <= e < 80).
+    const bool fp4_flash_shape =
+        intermediate_hidden <= 2048 or intermediate_hidden == 2304;
     const bool fp4_pro_shape = intermediate_hidden >= 3072;
     const bool fp4_flash_or_pro_shape = fp4_flash_shape or fp4_pro_shape;
     // Shape bands depend only on model shape and routing density; kernel bands add tile/thread constraints.
