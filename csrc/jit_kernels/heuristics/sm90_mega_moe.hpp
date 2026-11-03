@@ -332,7 +332,7 @@ static std::pair<int, int> get_pipeline_config_for_mega_moe_sm90_fp4(
     const int smem_cd = align(std::max(smem_cd_base, smem_cd_swap_l1), kSmemAlignment);
 
     const bool fp4_split_n_eligible =
-        block_m == 64 and num_epilogue_warpgroups > 1 and
+        (block_m <= 64 and (block_m == 64 or use_swap_ab)) and num_epilogue_warpgroups > 1 and
         block_n % num_epilogue_warpgroups == 0 and
         (block_n / num_epilogue_warpgroups) >= 64;
     const int wg_l1_out_block_n = fp4_split_n_eligible
@@ -354,7 +354,7 @@ static std::pair<int, int> get_pipeline_config_for_mega_moe_sm90_fp4(
     const int smem_sfb_per_stage =
         align(block_n * static_cast<int>(sizeof(uint32_t)), 128);
 
-    const int smem_b_decoded_per_stage = block_n * block_k;
+    const int smem_b_decoded_per_stage = use_swap_ab and block_m <= 32 ? 0 : block_n * block_k;
     const int smem_b_packed_per_stage = block_n * (block_k / 2);
     const int smem_per_stage = block_m * block_k +
                                smem_b_decoded_per_stage +
@@ -371,8 +371,11 @@ static std::pair<int, int> get_pipeline_config_for_mega_moe_sm90_fp4(
         smem_dispatch_size + smem_cd + smem_amax_scratch + smem_barriers_fixed;
 
     // Match the FP8 policy and use as many pipeline stages as SMEM permits.
-    const int num_stages = (smem_capacity - smem_fixed) /
+    int num_stages = (smem_capacity - smem_fixed) /
                            (smem_per_stage + smem_barriers_per_stage);
+    if (use_swap_ab and block_m <= 32) {
+        num_stages = std::min(num_stages, 6);
+    }
     DG_HOST_ASSERT(num_stages >= 2);
     return {num_stages,
             smem_fixed + num_stages * (smem_per_stage + smem_barriers_per_stage)};
@@ -386,10 +389,15 @@ static MegaMoESM90Config get_mega_moe_config_sm90_fp4(
     const bool& use_situ,
     const bool& use_early_b_decode = false,
     const bool& use_decode_done_mbarrier = false,
-    const bool& use_swap_ab = false) {
-    const auto [block_m, num_epilogue_threads] = get_block_config_for_mega_moe_sm90_fp4(
+    const bool& use_swap_ab = false,
+    const bool register_weights = false) {
+    auto [block_m, num_epilogue_threads] = get_block_config_for_mega_moe_sm90_fp4(
         num_ranks, num_experts, num_max_tokens_per_rank, num_topk, num_tokens,
         use_situ);
+    if (register_weights) {
+        DG_HOST_ASSERT(use_swap_ab and not use_early_b_decode);
+        block_m = 16;
+    }
     const int block_k = 128;
     const float expected_tokens_per_expert =
         static_cast<float>(num_tokens) * num_topk / num_experts_per_rank;
@@ -402,7 +410,7 @@ static MegaMoESM90Config get_mega_moe_config_sm90_fp4(
     const bool fp4_flash_or_pro_shape = fp4_flash_shape or fp4_pro_shape;
     // Shape bands depend only on model shape and routing density; kernel bands add tile/thread constraints.
     const bool fp4_split_n_eligible =
-        block_m == 64 and block_n % 128 == 0;
+        (block_m == 64 or use_swap_ab) and block_n % 128 == 0;
     const bool fp4_split_n_shape_band =
         // swapAB needs two split-N math warpgroups regardless of model width.
         // In particular, V4.1-Flash I=2304 falls between the older shape bands.
@@ -414,12 +422,12 @@ static MegaMoESM90Config get_mega_moe_config_sm90_fp4(
     }
     DG_HOST_ASSERT(fp4_num_epilogue_warpgroups >= 1);
     DG_HOST_ASSERT((block_m / fp4_num_epilogue_warpgroups == 64) or
-                   (block_m == 64 and fp4_num_epilogue_warpgroups > 1 and
+                   ((block_m == 64 or use_swap_ab) and fp4_num_epilogue_warpgroups > 1 and
                     block_n % fp4_num_epilogue_warpgroups == 0 and
                     (block_n / fp4_num_epilogue_warpgroups) >= 64));
     const int fp4_num_epilogue_threads = fp4_num_epilogue_warpgroups * 128;
     DG_HOST_ASSERT(not use_swap_ab or
-                   (block_m == 64 and block_n == 128 and
+                   (block_m <= 64 and block_n == 128 and
                     fp4_num_epilogue_threads == 256));
     const int cluster_size = 1;
     const int num_max_pool_tokens = layout::get_num_max_pool_tokens(
@@ -434,7 +442,7 @@ static MegaMoESM90Config get_mega_moe_config_sm90_fp4(
         num_max_pool_tokens, num_max_tokens_per_rank, num_ranks);
 
     const bool fp4_small_block_n_kernel =
-        block_m == 64 and block_n == 128;
+        (block_m == 64 or use_swap_ab) and block_n == 128;
     const bool fp4_split_n_decode_thread_kernel_band =
         fp4_small_block_n_kernel and fp4_split_n_shape_band;
     const bool fp4_2wg_decode_offload_kernel_band =
@@ -445,11 +453,12 @@ static MegaMoESM90Config get_mega_moe_config_sm90_fp4(
         fp4_2wg_decode_offload_kernel_band or
         (fp4_small_block_n_kernel and
          expected_tokens_per_expert > 0.0f and expected_tokens_per_expert <= 24.0f);
-    const int num_dispatch_threads =
+    const bool compact_cta = register_weights;
+    const int num_dispatch_threads = compact_cta ? 128 :
         (fp4_split_n_decode_thread_kernel_band or
          fp4_decode_assist_thread_kernel_band) ? 64 : 128;
     DG_HOST_ASSERT(num_dispatch_threads == 64 or num_dispatch_threads == 128);
-    const int num_non_epilogue_threads =
+    const int num_non_epilogue_threads = compact_cta ? 128 :
         fp4_split_n_decode_thread_kernel_band ? 320 :
         (fp4_decode_assist_thread_kernel_band ? 192 : 128);
     DG_HOST_ASSERT(num_non_epilogue_threads >= 128 and
@@ -469,7 +478,7 @@ static MegaMoESM90Config get_mega_moe_config_sm90_fp4(
         cluster_size,
         num_max_pool_tokens, num_padded_sf_pool_tokens,
         swizzle_acts_mode, swizzle_weights_mode,
-        num_experts_per_wave,
+        register_weights and num_tokens == 32 ? 12 : num_experts_per_wave,
         num_stages, smem_size,
         num_dispatch_threads, num_non_epilogue_threads, fp4_num_epilogue_threads
     };

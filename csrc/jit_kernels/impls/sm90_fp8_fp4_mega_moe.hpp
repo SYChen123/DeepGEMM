@@ -14,6 +14,8 @@
 #include "../heuristics/sm90_mega_moe.hpp"
 
 namespace deep_gemm {
+DJ_DECL_LAZY_DL_FUNCTION(deep_jit::cuda::driver::get_cuda_handle,
+                         cuOccupancyMaxActiveBlocksPerMultiprocessor);
 
 // ============================================================================
 // SM90 (Hopper) FP8 x FP4 MegaMoE host runtime
@@ -182,7 +184,8 @@ static void sm90_fp8_fp4_mega_moe(
     const bool& use_early_b_decode = false,
     const bool& use_decode_done_mbarrier = false,
     const bool& use_ss_nsplit = false,
-    const bool& use_swap_ab = false
+    const bool& use_swap_ab = false,
+    const bool register_weights = false
 ) {
     const auto num_ranks = static_cast<int>(sym_buffer_ptrs.size());
     const auto num_experts = num_experts_per_rank * num_ranks;
@@ -204,7 +207,7 @@ static void sm90_fp8_fp4_mega_moe(
         hidden, intermediate_hidden, num_padded_sf_pool_tokens,
         use_situ,
         use_early_b_decode, use_decode_done_mbarrier,
-        use_swap_ab);
+        use_swap_ab, register_weights);
 
     // Tensormap construction
     // Acts: FP8 e4m3, identical to FP8 path
@@ -226,12 +229,15 @@ static void sm90_fp8_fp4_mega_moe(
         ? l1_weights : l1_weights.view(torch::kByte);
     const auto l2_weights_bytes = l2_weights.scalar_type() == torch::kByte
         ? l2_weights : l2_weights.view(torch::kByte);
-    const auto tensor_map_l1_weights = make_tma_2d_desc(l1_weights_bytes,
-                                                        hidden / 2, num_experts_per_rank * intermediate_hidden * 2,
-                                                        config.block_k / 2, config.block_n,
-                                                        static_cast<int>(l1_weights_bytes.stride(-2)),
-                                                        config.swizzle_weights_mode, /*swizzle_base=*/0,
-                                                        /*allow_tf32=*/false);
+    const auto tensor_map_l1_weights = register_weights
+        ? make_tma_2d_desc(l1_weights_bytes,
+            hidden, num_experts_per_rank * intermediate_hidden,
+            config.block_k, config.block_n / 2, hidden, 128, 0, false)
+        : make_tma_2d_desc(l1_weights_bytes,
+            hidden / 2, num_experts_per_rank * intermediate_hidden * 2,
+            config.block_k / 2, config.block_n,
+            static_cast<int>(l1_weights_bytes.stride(-2)),
+            config.swizzle_weights_mode, 0, false);
 
     // L1 output (post-SwiGLU FP8): N is halved.
     // Mirror the FP8 split-N infrastructure: when BLOCK_M=64 and the host
@@ -244,7 +250,7 @@ static void sm90_fp8_fp4_mega_moe(
     // requires WG_BLOCK_N >= 64 (so the FP8MMASelector remains valid).
     const int num_epilogue_warpgroups_h = config.num_epilogue_threads / 128;
     const bool split_n_warpgroups =
-        config.block_m == 64 and num_epilogue_warpgroups_h > 1 and
+        (config.block_m == 64 or use_swap_ab) and num_epilogue_warpgroups_h > 1 and
         config.block_n % num_epilogue_warpgroups_h == 0 and
         (config.block_n / num_epilogue_warpgroups_h) >= 64;
     const int wg_split_m = split_n_warpgroups ? 1 : num_epilogue_warpgroups_h;
@@ -276,19 +282,23 @@ static void sm90_fp8_fp4_mega_moe(
                                                         config.block_m, kSM90FP4L2ActSFGranK,
                                                         1, 0, 0, false,
                                                         config.block_k / kSM90FP4L2ActSFGranK);
-    const auto tensor_map_l2_weights = make_tma_2d_desc(l2_weights_bytes,
-                                                        intermediate_hidden / 2, num_experts_per_rank * hidden,
-                                                        config.block_k / 2, config.block_n,
-                                                        static_cast<int>(l2_weights_bytes.stride(-2)),
-                                                        config.swizzle_weights_mode, /*swizzle_base=*/0,
-                                                        /*allow_tf32=*/false);
+    const auto tensor_map_l2_weights = register_weights
+        ? make_tma_2d_desc(l2_weights_bytes,
+            intermediate_hidden, num_experts_per_rank * hidden / 2,
+            config.block_k, config.block_n / 2, intermediate_hidden, 128, 0, false)
+        : make_tma_2d_desc(l2_weights_bytes,
+            intermediate_hidden / 2, num_experts_per_rank * hidden,
+            config.block_k / 2, config.block_n,
+            static_cast<int>(l2_weights_bytes.stride(-2)),
+            config.swizzle_weights_mode, 0, false);
 
     // Stats can be optional
     int* cumulative_local_expert_recv_stats_ptr = nullptr;
     if (cumulative_local_expert_recv_stats.has_value())
         cumulative_local_expert_recv_stats_ptr = cumulative_local_expert_recv_stats->data_ptr<int>();
     // Launch
-    const auto num_sms = runtime->get_num_sms();
+    const int small_ctas = register_weights ? 2 : 1;
+    const auto num_sms = runtime->get_num_sms() * small_ctas;
     const SM90FP8FP4MegaMoERuntime::Args args = {
         .num_max_tokens_per_rank = num_max_tokens_per_rank,
         .hidden = hidden, .intermediate_hidden = intermediate_hidden,
@@ -324,6 +334,17 @@ static void sm90_fp8_fp4_mega_moe(
     const auto code = SM90FP8FP4MegaMoERuntime::generate(args);
     const auto runtime_name = "sm90_fp8_fp4_mega_moe";
     const auto kernel = jit->compile(runtime_name, code);
+    if (small_ctas > 1) {
+        DJ_CUDA_DRIVER_CHECK(deep_jit::cuda::driver::lazy_cuFuncSetAttribute(
+            kernel->kernel_handle, CU_FUNC_ATTRIBUTE_MAX_DYNAMIC_SHARED_SIZE_BYTES,
+            config.smem_size));
+        int active_blocks = 0;
+        DJ_CUDA_DRIVER_CHECK(lazy_cuOccupancyMaxActiveBlocksPerMultiprocessor(
+            &active_blocks, kernel->kernel_handle,
+            config.num_dispatch_threads + config.num_non_epilogue_threads +
+                config.num_epilogue_threads, config.smem_size));
+        DG_HOST_ASSERT(active_blocks >= small_ctas);
+    }
     SM90FP8FP4MegaMoERuntime::launch(kernel, args);
 }
 

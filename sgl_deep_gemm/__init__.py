@@ -547,6 +547,40 @@ def transform_weights_for_mega_moe_sm90_fp4(
     )
 
 
+
+def pack_sm90_fp4_register_weights(weight: torch.Tensor) -> torch.Tensor:
+    """Repack an interleaved SM90 FP4 weight for the small-shape RS kernel.
+
+    The final singleton dimension tags the physical layout at the native
+    boundary. The UE8M0 scale tensor keeps its ordinary layout.
+    """
+    if weight.ndim != 3 or weight.dtype != torch.int8:
+        raise ValueError("Expected a rank-3 interleaved SM90 packed INT8 weight")
+    experts, rows, packed_k = weight.shape
+    if experts != 96 or (rows, packed_k) not in ((4608, 2560), (5120, 1152)):
+        raise ValueError("Register packing requires the V4.1-Flash EP4 expert layout")
+
+    return _pack_sm90_fp4_register_storage(weight).unsqueeze(-1)
+
+
+def _pack_sm90_fp4_register_storage(weight: torch.Tensor) -> torch.Tensor:
+    experts, rows, packed_k = weight.shape
+    fragments = torch.tensor(
+        [0, 1, 8, 9, 2, 3, 10, 11, 4, 5, 12, 13, 6, 7, 14, 15],
+        device=weight.device,
+    )
+    result = torch.empty_like(weight, memory_format=torch.contiguous_format)
+    for expert in range(experts):
+        fragment_packed = weight[expert].reshape(-1, 16).index_select(1, fragments)
+        paired = fragment_packed.reshape(rows // 2, 2, packed_k // 64, 64)
+        words = paired.permute(0, 2, 1, 3).contiguous().view(torch.int32)
+        packed = words & 0x77777777
+        for dest, source in enumerate((0, 4, 1, 5, 2, 6, 3, 7)):
+            packed |= ((words >> (source * 4)) & 8) << (dest * 4)
+        result[expert].copy_(packed.view(torch.int8).reshape(rows, packed_k))
+    return result
+
+
 def fp8_fp4_mega_moe(y: torch.Tensor,
                      l1_weights: Tuple[torch.Tensor, torch.Tensor],
                      l2_weights: Tuple[torch.Tensor, torch.Tensor],
