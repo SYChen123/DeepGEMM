@@ -15,6 +15,7 @@
 #include <deep_gemm/common/tma_copy.cuh>
 #include <deep_gemm/common/utils.cuh>
 #include <deep_gemm/comm/barrier.cuh>
+#include <deep_gemm/impls/sm90_mega_moe_profile.cuh>
 #include <deep_gemm/layout/sym_buffer.cuh>
 #include <deep_gemm/layout/mega_moe.cuh>
 #include <deep_gemm/mma/sm90.cuh>
@@ -383,6 +384,8 @@ template <
     bool kDecodeDoneMBarrier      = false,  // One-way decode-done mbarrier instead of rendezvous sync
     bool kFP4SSNSplit             = false,  // Split SS N=128 WGMMA into 2x N=64 to reduce accum pressure
     bool kFP4SwapAB               = false,  // weight@M, token@N for small-batch padding relief
+    bool kProfilePhases           = false,
+    bool kSparseDispatchCounts    = false,
     uint32_t L1_SHAPE_N = kIntermediateHidden * 2,
     uint32_t L1_SHAPE_K = kHidden,
     uint32_t L2_SHAPE_N = kHidden,
@@ -408,7 +411,8 @@ sm90_fp8_fp4_mega_moe_impl(void* y,
                            const __grid_constant__ cute::TmaDescriptor tensor_map_l2_acts,
                            const __grid_constant__ cute::TmaDescriptor tensor_map_l2_acts_sf,
                            const __grid_constant__ cute::TmaDescriptor tensor_map_l2_weights,
-                           const uint32_t* __restrict__ l2_weights_sf) {
+                           const uint32_t* __restrict__ l2_weights_sf,
+                           int64_t* __restrict__ phase_timings) {
 #if (defined(__CUDA_ARCH__) and (__CUDA_ARCH__ >= 900) and (__CUDA_ARCH__ < 1000)) or defined(__CLION_IDE__)
     using Barrier = cutlass::arch::ClusterTransactionBarrier;
 
@@ -843,6 +847,30 @@ sm90_fp8_fp4_mega_moe_impl(void* y,
     constexpr uint32_t kDispatchGridSyncIndex = 0;
     constexpr uint32_t kEpilogueGridSyncIndex = 1;
 
+    auto profile_time = [](bool leader) -> int64_t {
+        if constexpr (kProfilePhases) {
+            if (leader) {
+                int64_t ns;
+                asm volatile("mov.u64 %0, %%globaltimer;" : "=l"(ns) :: "memory");
+                return ns;
+            }
+        }
+        return 0;
+    };
+    auto profile_record = [&](SM90MegaMoEPhase phase, int64_t begin, int64_t end) {
+        if constexpr (kProfilePhases) {
+            if (begin != 0) {
+                auto* entry = phase_timings +
+                    (sm_idx * kSM90MegaMoEProfilePhases + static_cast<int>(phase)) *
+                        kSM90MegaMoEProfileFields;
+                if (entry[0] == 0)
+                    entry[0] = begin;
+                entry[1] = end;
+                entry[2] += end - begin;
+            }
+        }
+    };
+
     // SFB UE8M0 layouts (one uint32 per (n_row, 4 K-groups = BLOCK_K=128)):
     //   L1: shape [E, 2*IH, H/128] uint32, gran_mn=1 along N.
     //   L2: shape [E, H, IH/128] uint32.
@@ -902,6 +930,7 @@ sm90_fp8_fp4_mega_moe_impl(void* y,
     // =====================================================================
     if (warp_idx < kNumDispatchWarps) {
         cutlass::arch::warpgroup_reg_dealloc<kNumDispatchRegisters>();
+        const auto metadata_begin = profile_time(thread_idx == 0);
 
         DG_STATIC_ASSERT(kNumTopk <= 32, "Invalid number of topk");
         constexpr uint32_t kNumActivateLanes = kNumTokensPerWarp * kNumTopk;
@@ -930,7 +959,12 @@ sm90_fp8_fp4_mega_moe_impl(void* y,
         // Stake out per-expert SM offsets via global atomic
         #pragma unroll
         for (uint32_t i = thread_idx; i < kNumExperts; i += kNumDispatchThreads) {
-            const uint64_t send_value = (1ull << 32) | static_cast<uint64_t>(smem_expert_count[i]);
+            const uint32_t count = smem_expert_count[i];
+            if constexpr (kSparseDispatchCounts) {
+                if (count == 0)
+                    continue;
+            }
+            const uint64_t send_value = (kSparseDispatchCounts ? 0ull : (1ull << 32)) | count;
             smem_expert_count[i] = static_cast<uint32_t>(
                 ptx::atomic_add(workspace.get_expert_send_count_ptr(i), send_value));
         }
@@ -955,7 +989,11 @@ sm90_fp8_fp4_mega_moe_impl(void* y,
             for (uint32_t i = thread_idx; i < kNumExperts; i += kNumDispatchThreads) {
                 const auto dst_rank_idx = i / kNumExpertsPerRank;
                 const auto dst_local_expert_idx = i % kNumExpertsPerRank;
-                const auto expert_status = *workspace.get_expert_send_count_ptr(i);
+                auto expert_status = *workspace.get_expert_send_count_ptr(i);
+                // The grid barrier already established that every CTA has
+                // finished writing its indices, including zero-count CTAs.
+                if constexpr (kSparseDispatchCounts)
+                    expert_status |= static_cast<uint64_t>(kNumSMs) << 32;
                 *sym_buffer.map(
                     workspace.get_expert_recv_count_ptr(sym_buffer.rank_idx, dst_local_expert_idx),
                     dst_rank_idx) = expert_status & 0xffffffff;
@@ -979,6 +1017,8 @@ sm90_fp8_fp4_mega_moe_impl(void* y,
 
         // Sync with epilogue warps before pulling tokens
         ptx::sync_unaligned(kNumDispatchThreads + kNumEpilogueThreads, kDispatchWithEpilogueBarrierIdx);
+        const auto pull_begin = profile_time(thread_idx == 0);
+        profile_record(SM90MegaMoEPhase::DispatchMetadata, metadata_begin, pull_begin);
 
         // Token / SF pull loop
         uint32_t pull_mbarrier_phase = 0;
@@ -1121,8 +1161,13 @@ sm90_fp8_fp4_mega_moe_impl(void* y,
             __syncwarp();
         }
 
+        if constexpr (kProfilePhases)
+            ptx::sync_aligned(kNumDispatchThreads, kDispatchBarrierIdx);
+        profile_record(SM90MegaMoEPhase::DispatchPull, pull_begin, profile_time(thread_idx == 0));
+
         // Cleanup workspace, overlapping with combine.
         ptx::sync_unaligned(kNumDispatchThreads + kNumEpilogueThreads, kDispatchWithEpilogueBarrierIdx);
+        const auto cleanup_begin = profile_time(thread_idx == 0);
 
         DG_STATIC_ASSERT(kNumSMs > 1, "Invalid SM count");
         if (sm_idx == 0) {
@@ -1165,6 +1210,7 @@ sm90_fp8_fp4_mega_moe_impl(void* y,
             workspace, sym_buffer, sm_idx, thread_idx,
             [=]() { ptx::sync_aligned(kNumDispatchThreads, kDispatchBarrierIdx); },
             true, false);
+        profile_record(SM90MegaMoEPhase::WorkspaceCleanup, cleanup_begin, profile_time(thread_idx == 0));
 
     // =====================================================================
     // ROLE 2: GEMM TMA LOAD warps (load A+SFA, B+SFB)
@@ -1442,6 +1488,7 @@ sm90_fp8_fp4_mega_moe_impl(void* y,
             const uint32_t n_idx = n_block_idx * BLOCK_N;
 
             // ---------------- GEMM ----------------
+            const auto gemm_begin = profile_time(epilogue_thread_idx == 0);
             using WGMMA = L1WGMMA;
             constexpr uint32_t kAccumPerThread = kSwapABEligible ?
                 mma::sm90::FP8MMASelector<BLOCK_M>::type::kNumAccum : WGMMA::kNumAccum;  // 64 for M=64,N=128
@@ -1919,6 +1966,14 @@ sm90_fp8_fp4_mega_moe_impl(void* y,
                 else
                     run_k_stages.template operator()<false, 0>();
             }
+
+            // The diagnostic boundary must cover both math warpgroups.
+            if constexpr (kProfilePhases)
+                ptx::sync_aligned(kNumEpilogueThreads, kEpilogueFullBarrierIdx);
+            const auto epilogue_begin = profile_time(epilogue_thread_idx == 0);
+            profile_record(block_phase == sched::BlockPhase::Linear1
+                               ? SM90MegaMoEPhase::Linear1Gemm : SM90MegaMoEPhase::Linear2Gemm,
+                           gemm_begin, epilogue_begin);
 
             // Skip epilogue when block is past valid M (still must release via empty).
             // In split-N mode, `wg_m_offset` is 0 for all WGs (they share the same M
@@ -2486,9 +2541,13 @@ sm90_fp8_fp4_mega_moe_impl(void* y,
 
                 ptx::sync_aligned(kNumEpilogueThreads, kEpilogueFullBarrierIdx);
             }
+            profile_record(block_phase == sched::BlockPhase::Linear1
+                               ? SM90MegaMoEPhase::Linear1Epilogue : SM90MegaMoEPhase::Linear2Scatter,
+                           epilogue_begin, profile_time(epilogue_thread_idx == 0));
         }, cached_recv_counts);
 
         // ---------------- COMBINE ----------------
+        const auto combine_barrier_begin = profile_time(epilogue_thread_idx == 0);
         // NVLink barrier first: signals remote ranks that this rank's GEMM
         // outputs (NVLink scatter targets) are fully written.
         comm::nvlink_barrier<kNumRanks, kNumSMs, kNumEpilogueThreads,
@@ -2500,6 +2559,8 @@ sm90_fp8_fp4_mega_moe_impl(void* y,
         // Sync with dispatch (paired with dispatch's pre-cleanup sync) so that
         // dispatch may now safely clean workspace state.
         ptx::sync_unaligned(kNumDispatchThreads + kNumEpilogueThreads, kDispatchWithEpilogueBarrierIdx);
+        const auto combine_begin = profile_time(epilogue_thread_idx == 0);
+        profile_record(SM90MegaMoEPhase::CombineBarrier, combine_barrier_begin, combine_begin);
 
         constexpr uint32_t kNumHiddenBytes = kHidden * sizeof(nv_bfloat16);
         constexpr uint32_t kNumElemsPerUint4 = sizeof(uint4) / sizeof(nv_bfloat162);
@@ -2611,6 +2672,12 @@ sm90_fp8_fp4_mega_moe_impl(void* y,
                 }
                 __syncwarp();
             }
+        }
+        if constexpr (kProfilePhases) {
+            ptx::tma_store_wait<0>();
+            ptx::sync_aligned(kNumEpilogueThreads, kEpilogueFullBarrierIdx);
+            profile_record(SM90MegaMoEPhase::CombineReduce, combine_begin,
+                           profile_time(epilogue_thread_idx == 0));
         }
     }
 #else

@@ -10,6 +10,7 @@
 
 #include <deep_gemm/layout/mega_moe.cuh>
 #include <deep_gemm/layout/sym_buffer.cuh>
+#include <deep_gemm/impls/sm90_mega_moe_profile.cuh>
 
 #include "../heuristics/sm90_mega_moe.hpp"
 
@@ -69,6 +70,7 @@ public:
         bool use_ss_nsplit;
         // swapAB path: use decoded weight as WGMMA-M and tokens as WGMMA-N.
         bool use_swap_ab;
+        bool use_sparse_dispatch_counts;
         MegaMoESM90Config config;
 
         // Runtime arguments
@@ -88,6 +90,7 @@ public:
         CUtensorMap tensor_map_l2_acts_sf;
         CUtensorMap tensor_map_l2_weights;
         const uint32_t* l2_weights_sf;
+        int64_t* phase_timings;
 
         // Launch configs
         deep_jit::cuda::LaunchOptions launch_args;
@@ -119,6 +122,8 @@ static void __instantiate_kernel() {{
         {},
         {},
         {},
+        {},
+        {},
         {}
     >);
 }};
@@ -141,7 +146,9 @@ static void __instantiate_kernel() {{
     args.use_early_b_decode ? "true" : "false",
     args.use_decode_done_mbarrier ? "true" : "false",
     args.use_ss_nsplit ? "true" : "false",
-    args.use_swap_ab ? "true" : "false");
+    args.use_swap_ab ? "true" : "false",
+    args.phase_timings != nullptr ? "true" : "false",
+    args.use_sparse_dispatch_counts ? "true" : "false");
     }
 
     static void launch(const std::shared_ptr<deep_jit::cuda::Kernel>& kernel, const Args& args) {
@@ -158,7 +165,8 @@ static void __instantiate_kernel() {{
             args.tensor_map_l2_acts,
             args.tensor_map_l2_acts_sf,
             args.tensor_map_l2_weights,
-            args.l2_weights_sf
+            args.l2_weights_sf,
+            args.phase_timings
         );
     }
 };
@@ -185,7 +193,8 @@ static void sm90_fp8_fp4_mega_moe(
     const bool& use_decode_done_mbarrier = false,
     const bool& use_ss_nsplit = false,
     const bool& use_swap_ab = false,
-    const bool register_weights = false
+    const bool register_weights = false,
+    const std::optional<torch::Tensor>& phase_timings = std::nullopt
 ) {
     const auto num_ranks = static_cast<int>(sym_buffer_ptrs.size());
     const auto num_experts = num_experts_per_rank * num_ranks;
@@ -299,6 +308,16 @@ static void sm90_fp8_fp4_mega_moe(
     // Launch
     const int small_ctas = register_weights ? 2 : 1;
     const auto num_sms = runtime->get_num_sms() * small_ctas;
+    int64_t* phase_timings_ptr = nullptr;
+    if (phase_timings.has_value()) {
+        const auto& timings = *phase_timings;
+        DG_HOST_ASSERT(timings.device() == y.device() and timings.is_cuda());
+        DG_HOST_ASSERT(timings.scalar_type() == torch::kLong and timings.is_contiguous());
+        DG_HOST_ASSERT(timings.dim() == 3 and timings.size(0) == num_sms and
+                       timings.size(1) == kSM90MegaMoEProfilePhases and
+                       timings.size(2) == kSM90MegaMoEProfileFields);
+        phase_timings_ptr = timings.data_ptr<int64_t>();
+    }
     const SM90FP8FP4MegaMoERuntime::Args args = {
         .num_max_tokens_per_rank = num_max_tokens_per_rank,
         .hidden = hidden, .intermediate_hidden = intermediate_hidden,
@@ -314,6 +333,7 @@ static void sm90_fp8_fp4_mega_moe(
         .use_decode_done_mbarrier = use_decode_done_mbarrier,
         .use_ss_nsplit = use_ss_nsplit,
         .use_swap_ab = use_swap_ab,
+        .use_sparse_dispatch_counts = deep_jit::get_env<int>("DG_SM90_FP4_SPARSE_DISPATCH_COUNTS") != 0,
         .config = config,
         .y = y.data_ptr(),
         .cumulative_local_expert_recv_stats = cumulative_local_expert_recv_stats_ptr,
@@ -328,6 +348,7 @@ static void sm90_fp8_fp4_mega_moe(
         .tensor_map_l2_acts_sf = tensor_map_l2_acts_sf,
         .tensor_map_l2_weights = tensor_map_l2_weights,
         .l2_weights_sf = reinterpret_cast<const uint32_t*>(l2_weights_sf.data_ptr()),
+        .phase_timings = phase_timings_ptr,
         .launch_args = make_launch_options(num_sms, config.num_dispatch_threads + config.num_non_epilogue_threads + config.num_epilogue_threads,
                                   config.smem_size, config.cluster_size)
     };

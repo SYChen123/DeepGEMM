@@ -300,7 +300,8 @@ static void fp8_fp4_mega_moe_sm90(
     const std::optional<float>& activation_clamp_opt,
     const std::optional<float>& activation_alpha_opt,
     const std::optional<float>& activation_linear_beta_opt,
-    const bool& fast_math
+    const bool& fast_math,
+    const std::optional<torch::Tensor>& phase_timings = std::nullopt
 ) {
     const auto [l1_storage, l1_weights_sf] = l1_weights_tuple;
     const auto [l2_storage, l2_weights_sf] = l2_weights_tuple;
@@ -398,7 +399,7 @@ static void fp8_fp4_mega_moe_sm90(
                           fp4_defaults.early_b_decode,
                           fp4_defaults.decode_done_mbarrier,
                           fp4_defaults.ss_nsplit,
-                          fp4_defaults.swap_ab, register_weights);
+                          fp4_defaults.swap_ab, register_weights, phase_timings);
 
     if (deep_jit::get_env<int>("DG_COMM_KERNEL_DEBUG"))
         sym_buffer.zero_();
