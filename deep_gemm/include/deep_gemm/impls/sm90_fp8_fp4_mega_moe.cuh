@@ -413,7 +413,7 @@ sm90_fp8_fp4_mega_moe_impl(void* y,
                            const __grid_constant__ cute::TmaDescriptor tensor_map_l2_weights,
                            const uint32_t* __restrict__ l2_weights_sf,
                            int64_t* __restrict__ phase_timings) {
-#if (defined(__CUDA_ARCH__) and (__CUDA_ARCH__ >= 900) and (__CUDA_ARCH__ < 1000)) or defined(__CLION_IDE__)
+// #if (defined(__CUDA_ARCH__) and (__CUDA_ARCH__ >= 900) and (__CUDA_ARCH__ < 1000)) or defined(__CLION_IDE__)
     using Barrier = cutlass::arch::ClusterTransactionBarrier;
 
     // =====================================================================
@@ -941,6 +941,7 @@ sm90_fp8_fp4_mega_moe_impl(void* y,
                  i += kNumSMs * kNumDispatchWarps * kNumTokensPerWarp) {
                 int expert_idx = -1;
                 if (i + (lane_idx / kNumTopk) < num_tokens and lane_idx < kNumActivateLanes) {
+                    // 一个lane处理一个topk专家，dsv41中topk=6，6个lane处理一个token的topk，一个warp处理6个token的topk。
                     expert_idx = static_cast<int>(
                         __ldg(input_topk_idx_buffer.get_base_ptr<int64_t>() + i * kNumTopk + lane_idx));
                     if (expert_idx >= 0)
@@ -971,6 +972,7 @@ sm90_fp8_fp4_mega_moe_impl(void* y,
         ptx::sync_aligned(kNumDispatchThreads, kDispatchBarrierIdx);
 
         // Write source token-topk indices to remote ranks
+        // 更新dst_rank上专家的idx，token_topk_idx是所有token的所有topk拉平过后，当前专家所在的全局位置
         read_topk_idx([&](const uint32_t& token_topk_idx, const int& expert_idx) {
             const auto dst_rank_idx = expert_idx / kNumExpertsPerRank;
             const auto dst_slot_idx = atomicAdd_block(smem_expert_count + expert_idx, 1);
@@ -1238,7 +1240,7 @@ sm90_fp8_fp4_mega_moe_impl(void* y,
             if (block_phase == sched::BlockPhase::Linear1) {
                 const auto ptr = workspace.get_l1_arrival_count_ptr(pool_block_idx);
                 const auto expected = scheduler.template get_valid_m<false>();
-                while (ptx::ld_acq(ptr) != expected);
+                while (ptx::ld_acq(ptr) != expected); // 这里轮询会不会拖慢别的warp？？？
             } else {
                 constexpr uint32_t kNumL1BlockNs = L1_SHAPE_N / BLOCK_N;
                 const auto ptr = workspace.get_l2_arrival_mask_ptr(pool_block_idx);

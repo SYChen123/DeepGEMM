@@ -50,7 +50,9 @@ or 'l1_gemm/'.
 
 脚本运行方式（参考以上方式采集ncu profile）
 torchrun --standalone --nproc-per-node=4 \
-  scripts/bench_sm90_w4a8_megamoe.py --shape both --output bench_moe.json
+    /home/workspace/code/DeepGEMM/scripts/bench_sm90_w4a8_megamoe.py --shape decode --output bench_moe.json \
+    --mega-layout register \
+    --torch-profile-dir profiles --torch-profile-iters 2
 """
 
 import argparse
