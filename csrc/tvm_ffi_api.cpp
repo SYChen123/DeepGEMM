@@ -826,6 +826,10 @@ void dg_bf16_mega_moe(TensorView y, TensorView l1_weights, TensorView l2_weights
     );
 }
 
+int64_t dg_get_sm90_fp4_register_max_tokens() {
+    return mega::kSM90FP4RegisterMaxTokens;
+}
+
 template <typename... ProfileArgs>
 void dg_fp8_fp4_mega_moe_sm90(TensorView y, TensorView l1_weights, TensorView l1_weights_sf, TensorView l2_weights, TensorView l2_weights_sf,
                               Optional<TensorView> cumulative_local_expert_recv_stats, TensorView sym_buffer, Array<int64_t> sym_buffer_ptrs,
@@ -937,6 +941,7 @@ TVM_FFI_DLL_EXPORT_TYPED_FUNC(get_symm_buffer_size_for_mega_moe, dg_get_symm_buf
 TVM_FFI_DLL_EXPORT_TYPED_FUNC(get_symm_buffer_size_for_sm90_mega_moe, dg_get_symm_buffer_size_for_sm90_mega_moe);
 TVM_FFI_DLL_EXPORT_TYPED_FUNC(fp8_fp4_mega_moe, dg_fp8_fp4_mega_moe);
 TVM_FFI_DLL_EXPORT_TYPED_FUNC(bf16_mega_moe, dg_bf16_mega_moe);
+TVM_FFI_DLL_EXPORT_TYPED_FUNC(get_sm90_fp4_register_max_tokens, dg_get_sm90_fp4_register_max_tokens);
 TVM_FFI_DLL_EXPORT_TYPED_FUNC(fp8_fp4_mega_moe_sm90, dg_fp8_fp4_mega_moe_sm90<>);
 TVM_FFI_DLL_EXPORT_TYPED_FUNC(fp8_fp4_mega_moe_sm90_profile, dg_fp8_fp4_mega_moe_sm90<TensorView>);
 TVM_FFI_DLL_EXPORT_TYPED_FUNC(fp8_mega_moe, dg_fp8_mega_moe);

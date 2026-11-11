@@ -64,6 +64,9 @@ struct FP4SM90APIDefaults {
     bool swap_ab;
 };
 
+// Limit the RS weight layout independently of the swapAB density heuristic.
+static constexpr int kSM90FP4RegisterMaxTokens = 63;
+
 static FP4SM90APIDefaults get_fp4_sm90_api_defaults(
     const int& num_experts_per_rank, const int& num_tokens, const int& num_topk,
     const bool& use_situ) {
@@ -377,7 +380,7 @@ static void fp8_fp4_mega_moe_sm90(
     if (register_weights) {
         DG_HOST_ASSERT(hidden == 5120 and intermediate_hidden == 2304);
         DG_HOST_ASSERT(num_ranks == 4 and num_experts == 384 and num_topk == 6);
-        DG_HOST_ASSERT((num_tokens == 8 or num_tokens == 32) and not use_situ);
+        DG_HOST_ASSERT(num_tokens > 0 and num_tokens <= kSM90FP4RegisterMaxTokens and not use_situ);
         DG_HOST_ASSERT(fp4_defaults.swap_ab and not fp4_defaults.early_b_decode);
     }
     sm90_fp8_fp4_mega_moe(y,

@@ -548,6 +548,9 @@ def transform_weights_for_mega_moe_sm90_fp4(
 
 
 
+get_sm90_fp4_register_max_tokens = _C.get_sm90_fp4_register_max_tokens
+
+
 def pack_sm90_fp4_register_weights(weight: torch.Tensor) -> torch.Tensor:
     """Repack an interleaved SM90 FP4 weight for the small-shape RS kernel.
 
