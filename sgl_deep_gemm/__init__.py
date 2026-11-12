@@ -617,6 +617,8 @@ def fp8_fp4_mega_moe(y: torch.Tensor,
 
     Set use_sm90_register_weights on every EP rank to select the RS kernel
     with the same packed FP4 weight tensors used by the SS kernel.
+    DG_SM90_FP4_RS_EARLY_B_DECODE=1 lets RS decode weights before A/SFA arrives
+    and takes precedence over DG_SM90_FP4_RS_PIPELINE.
     """
     if activation == 'situ' and activation_clamp is not None:
         raise ValueError('activation_clamp is not supported with SiTU')

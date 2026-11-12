@@ -57,8 +57,8 @@ public:
         // Read the four packed FP4 words for one K/32 group with a
         // single wide shared load while keeping the default work partition.
         bool use_wide_load_decode;
-        // Split packed-B readiness from the A+B full barrier so the
-        // assist warps can start FP4 decode while A/SFA TMA is still in flight.
+        // Split weight readiness so SS assist warps or RS math warpgroups
+        // can decode while A/SFA is still in flight.
         bool use_early_b_decode;
         // Replace the FP4 decode rendezvous sync with a per-stage
         // mbarrier so assist warps can run ahead after publishing a decoded tile.
@@ -219,13 +219,22 @@ static void sm90_fp8_fp4_mega_moe(
     DG_HOST_ASSERT(l1_weights_sf.scalar_type() == torch::kInt);
     DG_HOST_ASSERT(l2_weights_sf.scalar_type() == torch::kInt);
 
+    const bool pipeline_rs_decode = register_weights and not packed_register_layout and
+        deep_jit::get_env<bool>("DG_SM90_FP4_RS_PIPELINE");
+    const bool rs_early_b_decode = register_weights and
+        deep_jit::get_env<bool>("DG_SM90_FP4_RS_EARLY_B_DECODE");
+    const bool split_b_ready = use_early_b_decode or rs_early_b_decode;
+    // RS consumes its own decoded registers. Reuse the unused decode-done
+    // barrier storage for weight readiness when splitting A and B.
+    const bool decode_done_mbarrier = use_decode_done_mbarrier and not rs_early_b_decode;
+
     // Heuristics
     const auto config = get_mega_moe_config_sm90_fp4(
         num_ranks, num_experts, num_experts_per_rank,
         num_max_tokens_per_rank, num_tokens, num_topk,
         hidden, intermediate_hidden, num_padded_sf_pool_tokens,
         use_situ,
-        use_early_b_decode, use_decode_done_mbarrier,
+        split_b_ready, decode_done_mbarrier,
         use_swap_ab, register_weights);
 
     // Tensormap construction
@@ -343,14 +352,13 @@ static void sm90_fp8_fp4_mega_moe(
         .activation_clamp = activation_clamp,
         .fast_math = fast_math,
         .use_wide_load_decode = use_wide_load_decode,
-        .use_early_b_decode = use_early_b_decode,
-        .use_decode_done_mbarrier = use_decode_done_mbarrier,
+        .use_early_b_decode = split_b_ready,
+        .use_decode_done_mbarrier = decode_done_mbarrier,
         .use_ss_nsplit = use_ss_nsplit,
         .use_swap_ab = use_swap_ab,
         .use_sparse_dispatch_counts = deep_jit::get_env<int>("DG_SM90_FP4_SPARSE_DISPATCH_COUNTS") != 0,
         .packed_register_layout = packed_register_layout,
-        .pipeline_rs_decode = register_weights and not packed_register_layout and
-                              deep_jit::get_env<bool>("DG_SM90_FP4_RS_PIPELINE"),
+        .pipeline_rs_decode = pipeline_rs_decode and not rs_early_b_decode,
         .profile_rs_stages = profile_rs_stages,
         .config = config,
         .y = y.data_ptr(),

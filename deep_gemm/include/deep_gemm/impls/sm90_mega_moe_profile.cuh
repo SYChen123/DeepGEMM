@@ -27,7 +27,7 @@ constexpr int kSM90MegaMoEProfileFields = 3;
 // Each entry contains the sampled K128 count, zero, and cumulative device ns.
 // Sample one K128 out of four to limit the effect of the probe on scheduling.
 enum class SM90MegaMoERSStage {
-    FullWait,
+    FullWait,  // Sum of the weight and activation waits when split.
     WeightRead,
     WeightDecode,
     WGMMAIssue,

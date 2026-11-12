@@ -395,7 +395,7 @@ static MegaMoESM90Config get_mega_moe_config_sm90_fp4(
         num_ranks, num_experts, num_max_tokens_per_rank, num_topk, num_tokens,
         use_situ);
     if (register_weights) {
-        DG_HOST_ASSERT(use_swap_ab and not use_early_b_decode);
+        DG_HOST_ASSERT(use_swap_ab);
         block_m = 16;
     }
     const int block_k = 128;

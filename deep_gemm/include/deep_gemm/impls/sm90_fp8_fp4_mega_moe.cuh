@@ -380,7 +380,7 @@ template <
     float kActivationClamp,
     bool kFastMath,
     bool kUseWideLoadDecode        = false,  // Read one K-group's packed FP4 words as uint4
-    bool kEarlyBDecode            = false,  // Overlap assist decode with A/SFA TMA
+    bool kEarlyBDecode            = false,  // Split weight readiness from A/SFA
     bool kDecodeDoneMBarrier      = false,  // One-way decode-done mbarrier instead of rendezvous sync
     bool kFP4SSNSplit             = false,  // Split SS N=128 WGMMA into 2x N=64 to reduce accum pressure
     bool kFP4SwapAB               = false,  // weight@M, token@N for small-batch padding relief
@@ -533,10 +533,13 @@ sm90_fp8_fp4_mega_moe_impl(void* y,
     DG_STATIC_ASSERT(not kFP4SwapAB or kSwapABEligible,
                      "Requested swapAB requires BM64/BN128, two split-N math warpgroups, and no SS N-split");
     constexpr bool kRegisterWeights = kSwapABEligible and BLOCK_M <= 32;
+    constexpr bool kRSEarlyBDecode = kRegisterWeights and kEarlyBDecode;
     DG_STATIC_ASSERT(not kPackedRegisterLayout or kRegisterWeights,
                      "The paired-row weight layout requires the RS kernel");
     DG_STATIC_ASSERT(not kPipelineRSDecode or (kRegisterWeights and not kPackedRegisterLayout),
                      "Pipelined RS decode requires standard packed FP4 weights");
+    DG_STATIC_ASSERT(not kRSEarlyBDecode or (not kPipelineRSDecode and not kDecodeDoneMBarrier),
+                     "Early RS decode uses the split barrier and prepares all K128 weights before A");
     DG_STATIC_ASSERT(not kProfileRSStages or
                      (kProfilePhases and kRegisterWeights and not kPackedRegisterLayout),
                      "Detailed GEMM timings require standard packed FP4 RS");
@@ -763,13 +766,11 @@ sm90_fp8_fp4_mega_moe_impl(void* y,
         if (cute::elect_one_sync()) {
             #pragma unroll
             for (uint32_t i = 0; i < kNumStages; ++ i) {
-                // Default path uses one A+B full barrier. The early-B path
-                // splits packed-B readiness so assist warps can decode while
-                // A/SFA TMA is still in flight; the main full barrier then only
-                // tracks the A/SFA producer.
-                full_barriers[i]->init(kRegisterWeights ? 3 : (kUseEarlyBDecode ? 1 : 2));
+                // With split readiness, full tracks A/SFA only. In RS,
+                // packed B TMA and the SFB warp both arrive at decode_full.
+                full_barriers[i]->init(kUseEarlyBDecode ? 1 : (kRegisterWeights ? 3 : 2));
                 if constexpr (kUseEarlyBDecode)
-                    decode_full_barriers[i]->init(1);
+                    decode_full_barriers[i]->init(kRSEarlyBDecode ? 2 : 1);
                 if constexpr (kUseDecodeDoneMBarrier) {
                     // decode_done is a one-way producer->consumer mbarrier:
                     // only the warps that actually run `decode_fp4_b_stage`
@@ -1385,7 +1386,7 @@ sm90_fp8_fp4_mega_moe_impl(void* y,
         if constexpr (kRegisterWeights) {
             // Reuse an otherwise idle decode-assist warp for SFB. The packed
             // weight TMA producer can now issue ahead while scalar SFB loads
-            // wait on global memory. Full waits for A, packed B, and SFB.
+            // wait on global memory.
             if (warp_idx == kNumDispatchWarps + kNumFP4TMALoaderWarps) {
                 sm90_fp8_fp4_mega_moe_for_each_cached_block<
                     kNumExpertsPerRank, kNumExpertsPerLane,
@@ -1409,7 +1410,12 @@ sm90_fp8_fp4_mega_moe_impl(void* y,
                                 n_global * sfb_k_words + kb);
                         }
                         __syncwarp();
-                        if (cute::elect_one_sync()) full_barriers[stage_idx]->arrive();
+                        if (cute::elect_one_sync()) {
+                            if constexpr (kRSEarlyBDecode)
+                                decode_full_barriers[stage_idx]->arrive();
+                            else
+                                full_barriers[stage_idx]->arrive();
+                        }
                         __syncwarp();
                     }
                 }, cached_recv_counts);
@@ -1619,9 +1625,12 @@ sm90_fp8_fp4_mega_moe_impl(void* y,
             for (uint32_t k_block_idx = 0; k_block_idx < num_k_blocks; advance_pipeline(k_block_idx)) {
                 const bool sample_rs = kProfileRSStages and
                     k_block_idx % kSM90MegaMoERSProfilePeriod == rs_sample_offset;
-                const auto full_wait_begin = rs_timestamp(sample_rs);
-                full_barriers[stage_idx]->wait(phase);
-                record_rs_stage(RSStage::FullWait, full_wait_begin);
+                const auto ready_wait_begin = rs_timestamp(sample_rs);
+                if constexpr (kRSEarlyBDecode)
+                    decode_full_barriers[stage_idx]->wait(phase);
+                else
+                    full_barriers[stage_idx]->wait(phase);
+                record_rs_stage(RSStage::FullWait, ready_wait_begin);
 
                 // Read SF (must precede warpgroup_arrive)
                 float scale_a_0_lo, scale_a_1_lo;
@@ -1648,7 +1657,7 @@ sm90_fp8_fp4_mega_moe_impl(void* y,
                 //
                 // Non-epilogue assist warps decode the tile, then the math
                 // warpgroups wait before WGMMA reads the decoded shared tile.
-                if constexpr (kUseEarlyBDecode)
+                if constexpr (kUseEarlyBDecode and not kRegisterWeights)
                     wait_fp4_decode_input_ready(stage_idx, phase);
                 if constexpr (not kRegisterWeights) wait_fp4_decode_done(stage_idx, phase);
                 // Register A operands stay live until the WGMMA group drains.
@@ -1657,6 +1666,13 @@ sm90_fp8_fp4_mega_moe_impl(void* y,
                     #pragma unroll
                     for (uint32_t ki = 0; ki < BLOCK_K / (kPipelineRSDecode and not kIsL1 ? 64 : 32); ++ki)
                         load_register_weights(ki * 32, register_weights[ki], sample_rs);
+                }
+                if constexpr (kRSEarlyBDecode) {
+                    // Weight registers are ready. The WGMMA activation
+                    // descriptor and SFA still need the A producer's TMA.
+                    const auto activation_wait_begin = rs_timestamp(sample_rs);
+                    full_barriers[stage_idx]->wait(phase);
+                    record_rs_stage(RSStage::FullWait, activation_wait_begin);
                 }
 
                 if constexpr (kIsL1) {

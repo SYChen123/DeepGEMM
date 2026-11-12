@@ -1,4 +1,4 @@
-"""Compare serial and pipelined SM90 MegaMoE RS on V4.1 Flash EP4 shapes."""
+"""Compare SM90 MegaMoE RS weight preparation paths on V4.1 Flash EP4 shapes."""
 
 import argparse
 import json
@@ -30,10 +30,11 @@ def make_inputs(rows, rank, hot_expert=False):
     return x, ids, probs
 
 
-def make_run(weights, inputs, buffer, pipeline, phase_timings=None):
+def make_run(weights, inputs, buffer, variant, phase_timings=None):
     import deep_gemm
 
-    os.environ["DG_SM90_FP4_RS_PIPELINE"] = "1" if pipeline else "0"
+    os.environ["DG_SM90_FP4_RS_PIPELINE"] = "1" if variant == "pipeline" else "0"
+    os.environ["DG_SM90_FP4_RS_EARLY_B_DECODE"] = "1" if variant == "early-b" else "0"
     x, ids, probs = inputs
     output = torch.empty_like(x)
 
@@ -77,11 +78,10 @@ def compare_outputs(serial, pipeline):
     }
 
 
-def check_rows(weights, inputs, buffer, rounds, iters):
-    variants = ("serial", "pipeline")
+def check_rows(weights, inputs, buffer, variants, rounds, iters):
     graphs, outputs = {}, {}
     for variant in variants:
-        run, outputs[variant] = make_run(weights, inputs, buffer, variant == "pipeline")
+        run, outputs[variant] = make_run(weights, inputs, buffer, variant)
         graphs[variant] = capture(run)
     accuracy = compare_outputs(*outputs.values())
     samples = {variant: [] for variant in variants}
@@ -103,7 +103,7 @@ def check_rows(weights, inputs, buffer, rounds, iters):
     return accuracy, summarize(samples) if rounds else None
 
 
-def profile_rs(weights, inputs, buffer, pipeline, iters):
+def profile_rs(weights, inputs, buffer, variant, iters):
     import deep_gemm
 
     coarse_phases = len(MEGA_PHASES)
@@ -111,7 +111,7 @@ def profile_rs(weights, inputs, buffer, pipeline, iters):
         (2 * deep_gemm.get_num_sms(), coarse_phases + 2 * len(RS_STAGES), 3),
         device="cuda", dtype=torch.int64,
     )
-    run, _ = make_run(weights, inputs, buffer, pipeline, phase_timings=timings)
+    run, _ = make_run(weights, inputs, buffer, variant, phase_timings=timings)
     warmup(run, 3)
     totals = torch.zeros_like(timings[0, coarse_phases:])
     coarse_samples = {}
@@ -149,6 +149,8 @@ def main():
     parser.add_argument("--rows", type=int, nargs="+", default=[8, 32, 64, 128])
     parser.add_argument("--rounds", type=int, default=11)
     parser.add_argument("--iters", type=int, default=40)
+    parser.add_argument("--compare", choices=("pipeline", "early-b"), default="pipeline",
+                        help="Compare the selected RS variant against the combined-barrier baseline")
     parser.add_argument("--profile-iters", type=int, default=0,
                         help="Collect detailed RS stage diagnostics after the Graph A/B")
     args = parser.parse_args()
@@ -164,6 +166,7 @@ def main():
         assert dist.get_world_size() == WORLD
         rank = dist.get_rank()
         weights = prepare_mega(rank, register=False)
+        variants = ("serial", args.compare)
         rng = torch.Generator(device="cuda").manual_seed(15000 + rank)
         for _, scales in weights:
             scales.view(torch.uint8).random_(119, 123, generator=rng)
@@ -173,6 +176,7 @@ def main():
             "num_sms": deep_gemm.get_num_sms(),
             "rounds": args.rounds,
             "iterations_per_round": args.iters,
+            "comparison": args.compare,
             "rows": {},
         }
         for rows in args.rows:
@@ -181,15 +185,17 @@ def main():
                 mma_type="fp8xfp4",
             )
             uniform, timings = check_rows(
-                weights, make_inputs(rows, rank), buffer, args.rounds, args.iters,
+                weights, make_inputs(rows, rank), buffer, variants, args.rounds, args.iters,
             )
-            hot, _ = check_rows(weights, make_inputs(rows, rank, hot_expert=True), buffer, 0, args.iters)
+            hot, _ = check_rows(
+                weights, make_inputs(rows, rank, hot_expert=True), buffer, variants, 0, args.iters,
+            )
             result = {"uniform_check": uniform, "hot_expert_check": hot, "timings": timings}
             if args.profile_iters:
                 inputs = make_inputs(rows, rank)
                 result["profile"] = {
-                    variant: profile_rs(weights, inputs, buffer, variant == "pipeline", args.profile_iters)
-                    for variant in ("serial", "pipeline")
+                    variant: profile_rs(weights, inputs, buffer, variant, args.profile_iters)
+                    for variant in variants
                 }
             report["rows"][str(rows)] = result
             if rank == 0:
@@ -197,7 +203,7 @@ def main():
                 args.output.write_text(json.dumps(report, indent=2) + "\n")
                 print(f"{rows} rows: {json.dumps(result)}", flush=True)
             if not (uniform["passed"] and hot["passed"]):
-                raise RuntimeError(f"RS pipeline output mismatch for {rows} rows")
+                raise RuntimeError(f"RS {args.compare} output mismatch for {rows} rows")
             buffer.destroy()
     finally:
         dist.destroy_process_group()
