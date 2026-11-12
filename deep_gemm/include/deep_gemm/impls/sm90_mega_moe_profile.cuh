@@ -23,4 +23,21 @@ enum class SM90MegaMoEPhase {
 constexpr int kSM90MegaMoEProfilePhases = static_cast<int>(SM90MegaMoEPhase::Count);
 constexpr int kSM90MegaMoEProfileFields = 3;
 
+// Extended RS buffers append these counters for W13 and W2, in that order.
+// Each entry contains the sampled K128 count, zero, and cumulative device ns.
+// Sample one K128 out of four to limit the effect of the probe on scheduling.
+enum class SM90MegaMoERSStage {
+    FullWait,
+    WeightRead,
+    WeightDecode,
+    WGMMAIssue,
+    WGMMAWait,
+    Promote,
+    Count
+};
+
+constexpr int kSM90MegaMoERSStages = static_cast<int>(SM90MegaMoERSStage::Count);
+constexpr int kSM90MegaMoERSProfilePhases = kSM90MegaMoEProfilePhases + 2 * kSM90MegaMoERSStages;
+constexpr int kSM90MegaMoERSProfilePeriod = 4;
+
 }  // namespace deep_gemm

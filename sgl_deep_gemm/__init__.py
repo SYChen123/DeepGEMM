@@ -611,6 +611,9 @@ def fp8_fp4_mega_moe(y: torch.Tensor,
     The diagnostic buffer must be a zeroed contiguous CUDA int64 tensor with
     shape (grid_ctas, 9, 3). The fields are first entry, last exit, and
     accumulated duration in device nanoseconds, in SM90MegaMoEPhase order.
+    Standard-layout RS also accepts (grid_ctas, 21, 3). The extra rows
+    contain sampled K128 count, zero, and cumulative nanoseconds for six
+    stages in each of W13 and W2, in SM90MegaMoERSStage order.
 
     Set use_sm90_register_weights on every EP rank to select the RS kernel
     with the same packed FP4 weight tensors used by the SS kernel.

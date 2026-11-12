@@ -387,6 +387,8 @@ template <
     bool kProfilePhases           = false,
     bool kSparseDispatchCounts    = false,
     bool kPackedRegisterLayout    = false,  // Legacy paired-row FP4 storage
+    bool kPipelineRSDecode        = false,
+    bool kProfileRSStages         = false,
     uint32_t L1_SHAPE_N = kIntermediateHidden * 2,
     uint32_t L1_SHAPE_K = kHidden,
     uint32_t L2_SHAPE_N = kHidden,
@@ -533,6 +535,11 @@ sm90_fp8_fp4_mega_moe_impl(void* y,
     constexpr bool kRegisterWeights = kSwapABEligible and BLOCK_M <= 32;
     DG_STATIC_ASSERT(not kPackedRegisterLayout or kRegisterWeights,
                      "The paired-row weight layout requires the RS kernel");
+    DG_STATIC_ASSERT(not kPipelineRSDecode or (kRegisterWeights and not kPackedRegisterLayout),
+                     "Pipelined RS decode requires standard packed FP4 weights");
+    DG_STATIC_ASSERT(not kProfileRSStages or
+                     (kProfilePhases and kRegisterWeights and not kPackedRegisterLayout),
+                     "Detailed GEMM timings require standard packed FP4 RS");
     constexpr bool kSwapABL1Active = kSwapABEligible;
     constexpr bool kSwapABL2Active = kSwapABEligible;
     // Flash b4 is assigned a distinct epw16 kernel. Keep one intermediate
@@ -861,11 +868,13 @@ sm90_fp8_fp4_mega_moe_impl(void* y,
         }
         return 0;
     };
+    constexpr int kProfileStride = kProfileRSStages
+        ? kSM90MegaMoERSProfilePhases : kSM90MegaMoEProfilePhases;
     auto profile_record = [&](SM90MegaMoEPhase phase, int64_t begin, int64_t end) {
         if constexpr (kProfilePhases) {
             if (begin != 0) {
                 auto* entry = phase_timings +
-                    (sm_idx * kSM90MegaMoEProfilePhases + static_cast<int>(phase)) *
+                    (sm_idx * kProfileStride + static_cast<int>(phase)) *
                         kSM90MegaMoEProfileFields;
                 if (entry[0] == 0)
                     entry[0] = begin;
@@ -1507,22 +1516,52 @@ sm90_fp8_fp4_mega_moe_impl(void* y,
             constexpr uint32_t kSSHalfAccum = SSHalfWGMMA::kNumAccum;
             constexpr uint32_t kSSAccum = kSSNSplitActive ? kSSHalfAccum : kAccumPerThread;
             float final_accum[kAccumPerThread] = {};
+            using RSStage = SM90MegaMoERSStage;
+            const uint32_t rs_sample_offset = sm_idx % kSM90MegaMoERSProfilePeriod;
+            uint32_t rs_stage_ns[kSM90MegaMoERSStages] = {};
+            auto rs_timestamp = [&](bool sample) -> int64_t {
+                if constexpr (kProfileRSStages)
+                    return profile_time(sample and epilogue_thread_idx == 0);
+                return 0;
+            };
+            auto record_rs_stage = [&](RSStage step, int64_t begin) {
+                if constexpr (kProfileRSStages) {
+                    if (begin != 0)
+                        rs_stage_ns[static_cast<int>(step)] += profile_time(true) - begin;
+                }
+            };
+            auto record_rs_promotion = [&](int64_t begin) {
+                if constexpr (kProfileRSStages) {
+                    if (begin != 0) {
+                        #pragma unroll
+                        for (uint32_t i = 0; i < kAccumPerThread; ++i)
+                            ptx::warpgroup_fence_operand(final_accum[i]);
+                        record_rs_stage(RSStage::Promote, begin);
+                    }
+                }
+            };
             // The K-stage loop is instantiated per (phase, swapAB-N): tile
             // invariant decisions (the Linear1/Linear2 branch and the swapAB
             // n_swap dispatch chain) used to run on every K-stage of the math
             // warp's critical path, which sets the whole pipeline's steady
             // beat; hoisting them to one dispatch per tile also lets the
             // compiler specialize each loop body.
-            auto load_register_weights = [&](uint32_t k_off, uint32_t* a) {
+            auto load_register_weights = [&](uint32_t k_off, uint32_t* a, bool sample) {
                 // CuTe ALayout_64x32: lane/4 supplies the row, lane%4
                 // supplies 4 adjacent K bytes; registers 1/3 use row+8,
                 // registers 2/3 use K+16.
                 const uint32_t row0 = wg_n_offset + warp_idx_in_wg * 16 + lane_idx / 4;
                 const uint32_t row1 = row0 + 8;
+                const auto lookup_begin = rs_timestamp(sample);
                 const uint32_t sf0 = (smem_sfb[stage_idx][row0] >> (k_off / 32 * 8)) & 255;
                 const uint32_t sf1 = (smem_sfb[stage_idx][row1] >> (k_off / 32 * 8)) & 255;
                 const uint64_t lut0 = weight_lut[sf0];
                 const uint64_t lut1 = weight_lut[sf1];
+                if constexpr (kProfileRSStages) {
+                    if (lookup_begin != 0)
+                        asm volatile("" :: "l"(lut0), "l"(lut1) : "memory");
+                    record_rs_stage(RSStage::WeightRead, lookup_begin);
+                }
                 #pragma unroll
                 for (uint32_t row_half = 0; row_half < 2; ++row_half) {
                     const uint32_t row = row_half ? row1 : row0;
@@ -1534,12 +1573,24 @@ sm90_fp8_fp4_mega_moe_impl(void* y,
                         const uint32_t col = k_off / 2 + (lane_idx % 4) * 2;
                         const uint32_t row_swizzle = ((row >> 1) & 3) * 16;
                         const auto* tile_row = smem_b_packed[stage_idx] + row * (BLOCK_K / 2);
+                        const auto read_begin = rs_timestamp(sample);
                         const auto lo = *reinterpret_cast<const uint16_t*>(tile_row + (col ^ row_swizzle));
                         const auto hi = *reinterpret_cast<const uint16_t*>(tile_row + ((col + 8) ^ row_swizzle));
+                        if constexpr (kProfileRSStages) {
+                            if (read_begin != 0)
+                                asm volatile("" :: "r"(uint32_t(lo)), "r"(uint32_t(hi)) : "memory");
+                            record_rs_stage(RSStage::WeightRead, read_begin);
+                        }
+                        const auto decode_begin = rs_timestamp(sample);
                         const uint32_t lut_lo = static_cast<uint32_t>(lut);
                         const uint32_t lut_hi = static_cast<uint32_t>(lut >> 32);
                         a[row_half] = fp4_decode_detail::fp4x4_to_scaled_e4m3x4_lut(lo, lut_lo, lut_hi);
                         a[row_half + 2] = fp4_decode_detail::fp4x4_to_scaled_e4m3x4_lut(hi, lut_lo, lut_hi);
+                        if constexpr (kProfileRSStages) {
+                            if (decode_begin != 0)
+                                asm volatile("" :: "r"(a[row_half]), "r"(a[row_half + 2]) : "memory");
+                            record_rs_stage(RSStage::WeightDecode, decode_begin);
+                        }
                     } else {
                         const uint32_t paired_row = row / 2;
                         // Offline fragment layout packs K[0:4] and K[16:20]
@@ -1566,7 +1617,11 @@ sm90_fp8_fp4_mega_moe_impl(void* y,
             };
             auto run_k_stages = [&]<bool kIsL1, uint32_t kNSwap>() {
             for (uint32_t k_block_idx = 0; k_block_idx < num_k_blocks; advance_pipeline(k_block_idx)) {
+                const bool sample_rs = kProfileRSStages and
+                    k_block_idx % kSM90MegaMoERSProfilePeriod == rs_sample_offset;
+                const auto full_wait_begin = rs_timestamp(sample_rs);
                 full_barriers[stage_idx]->wait(phase);
+                record_rs_stage(RSStage::FullWait, full_wait_begin);
 
                 // Read SF (must precede warpgroup_arrive)
                 float scale_a_0_lo, scale_a_1_lo;
@@ -1600,8 +1655,8 @@ sm90_fp8_fp4_mega_moe_impl(void* y,
                 uint32_t register_weights[BLOCK_K / 32][4];
                 if constexpr (kRegisterWeights) {
                     #pragma unroll
-                    for (uint32_t ki = 0; ki < BLOCK_K / 32; ++ki)
-                        load_register_weights(ki * 32, register_weights[ki]);
+                    for (uint32_t ki = 0; ki < BLOCK_K / (kPipelineRSDecode and not kIsL1 ? 64 : 32); ++ki)
+                        load_register_weights(ki * 32, register_weights[ki], sample_rs);
                 }
 
                 if constexpr (kIsL1) {
@@ -1614,6 +1669,7 @@ sm90_fp8_fp4_mega_moe_impl(void* y,
                             constexpr uint32_t kSwapAccum = SwapWGMMA::kNumAccum;
                             float swap_accum[kSwapAccum];
 
+                            const auto issue_begin = rs_timestamp(sample_rs);
                             #pragma unroll
                             for (uint32_t i = 0; i < kSwapAccum; ++ i)
                                 ptx::warpgroup_fence_operand(swap_accum[i]);
@@ -1632,11 +1688,15 @@ sm90_fp8_fp4_mega_moe_impl(void* y,
                                 }
                             }
                             ptx::warpgroup_commit_batch();
+                            record_rs_stage(RSStage::WGMMAIssue, issue_begin);
                             #pragma unroll
                             for (uint32_t i = 0; i < kSwapAccum; ++ i)
                                 ptx::warpgroup_fence_operand(swap_accum[i]);
+                            const auto wait_begin = rs_timestamp(sample_rs);
                             ptx::warpgroup_wait<0>();
+                            record_rs_stage(RSStage::WGMMAWait, wait_begin);
 
+                            const auto promote_begin = rs_timestamp(sample_rs);
                             #pragma unroll
                             for (uint32_t i = 0; i < kSwapAccum / 4; ++ i) {
                                 const uint32_t token_0 = i * 8 + col_idx * 2;
@@ -1653,6 +1713,7 @@ sm90_fp8_fp4_mega_moe_impl(void* y,
                                 }
                             }
 
+                            record_rs_promotion(promote_begin);
                             if (lane_idx == 0)
                                 empty_barriers[stage_idx]->arrive();
                         };
@@ -1735,6 +1796,7 @@ sm90_fp8_fp4_mega_moe_impl(void* y,
                             float swap_accum[kSwapAccum];
 
                             auto promote_swap_accum = [&](const uint32_t& sf_group) {
+                                const auto promote_begin = rs_timestamp(sample_rs);
                                 #pragma unroll
                                 for (uint32_t i = 0; i < kSwapAccum / 4; ++ i) {
                                     const uint32_t token_0 = i * 8 + col_idx * 2;
@@ -1752,8 +1814,10 @@ sm90_fp8_fp4_mega_moe_impl(void* y,
                                         final_accum[i * 4 + 3] += scale_1 * swap_accum[i * 4 + 3];
                                     }
                                 }
+                                record_rs_promotion(promote_begin);
                             };
 
+                            const auto first_issue_begin = rs_timestamp(sample_rs);
                             #pragma unroll
                             for (uint32_t i = 0; i < kSwapAccum; ++ i)
                                 ptx::warpgroup_fence_operand(swap_accum[i]);
@@ -1772,12 +1836,32 @@ sm90_fp8_fp4_mega_moe_impl(void* y,
                                 }
                             }
                             ptx::warpgroup_commit_batch();
+                            record_rs_stage(RSStage::WGMMAIssue, first_issue_begin);
                             #pragma unroll
                             for (uint32_t i = 0; i < kSwapAccum; ++ i)
                                 ptx::warpgroup_fence_operand(swap_accum[i]);
+                            if constexpr (kPipelineRSDecode) {
+                                // Both halves are ready in the same SMEM stage. Prepare the
+                                // second register bank while the first K64 is in flight.
+                                #pragma unroll
+                                for (uint32_t ki = BLOCK_K / 64; ki < BLOCK_K / 32; ++ki)
+                                    load_register_weights(ki * 32, register_weights[ki], sample_rs);
+                            }
+                            const auto first_wait_begin = rs_timestamp(sample_rs);
                             ptx::warpgroup_wait<0>();
+                            record_rs_stage(RSStage::WGMMAWait, first_wait_begin);
+                            if constexpr (kPipelineRSDecode) {
+                                // Preserve the first bank through the asynchronous wait.
+                                #pragma unroll
+                                for (uint32_t ki = 0; ki < BLOCK_K / 64; ++ki) {
+                                    #pragma unroll
+                                    for (uint32_t i = 0; i < 4; ++i)
+                                        asm volatile("" :: "r"(register_weights[ki][i]) : "memory");
+                                }
+                            }
                             promote_swap_accum(0);
 
+                            const auto second_issue_begin = rs_timestamp(sample_rs);
                             #pragma unroll
                             for (uint32_t i = 0; i < kSwapAccum; ++ i)
                                 ptx::warpgroup_fence_operand(swap_accum[i]);
@@ -1797,10 +1881,13 @@ sm90_fp8_fp4_mega_moe_impl(void* y,
                                 }
                             }
                             ptx::warpgroup_commit_batch();
+                            record_rs_stage(RSStage::WGMMAIssue, second_issue_begin);
                             #pragma unroll
                             for (uint32_t i = 0; i < kSwapAccum; ++ i)
                                 ptx::warpgroup_fence_operand(swap_accum[i]);
+                            const auto second_wait_begin = rs_timestamp(sample_rs);
                             ptx::warpgroup_wait<0>();
+                            record_rs_stage(RSStage::WGMMAWait, second_wait_begin);
                             promote_swap_accum(1);
 
                             if (lane_idx == 0)
@@ -1995,6 +2082,22 @@ sm90_fp8_fp4_mega_moe_impl(void* y,
             profile_record(block_phase == sched::BlockPhase::Linear1
                                ? SM90MegaMoEPhase::Linear1Gemm : SM90MegaMoEPhase::Linear2Gemm,
                            gemm_begin, epilogue_begin);
+            if constexpr (kProfileRSStages) {
+                if (epilogue_thread_idx == 0) {
+                    const int linear = block_phase == sched::BlockPhase::Linear1 ? 0 : 1;
+                    auto* entry = phase_timings +
+                        (sm_idx * kProfileStride + kSM90MegaMoEProfilePhases +
+                         linear * kSM90MegaMoERSStages) * kSM90MegaMoEProfileFields;
+                    const auto samples = num_k_blocks > rs_sample_offset
+                        ? math::ceil_div(num_k_blocks - rs_sample_offset, uint32_t(kSM90MegaMoERSProfilePeriod))
+                        : 0u;
+                    #pragma unroll
+                    for (int step = 0; step < kSM90MegaMoERSStages; ++step) {
+                        entry[step * kSM90MegaMoEProfileFields] += samples;
+                        entry[step * kSM90MegaMoEProfileFields + 2] += rs_stage_ns[step];
+                    }
+                }
+            }
 
             // Skip epilogue when block is past valid M (still must release via empty).
             // In split-N mode, `wg_m_offset` is 0 for all WGs (they share the same M

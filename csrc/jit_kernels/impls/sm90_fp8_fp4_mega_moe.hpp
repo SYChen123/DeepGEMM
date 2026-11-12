@@ -72,6 +72,8 @@ public:
         bool use_swap_ab;
         bool use_sparse_dispatch_counts;
         bool packed_register_layout;
+        bool pipeline_rs_decode;
+        bool profile_rs_stages;
         MegaMoESM90Config config;
 
         // Runtime arguments
@@ -126,6 +128,8 @@ static void __instantiate_kernel() {{
         {},
         {},
         {},
+        {},
+        {},
         {}
     >);
 }};
@@ -151,7 +155,9 @@ static void __instantiate_kernel() {{
     args.use_swap_ab ? "true" : "false",
     args.phase_timings != nullptr ? "true" : "false",
     args.use_sparse_dispatch_counts ? "true" : "false",
-    args.packed_register_layout ? "true" : "false");
+    args.packed_register_layout ? "true" : "false",
+    args.pipeline_rs_decode ? "true" : "false",
+    args.profile_rs_stages ? "true" : "false");
     }
 
     static void launch(const std::shared_ptr<deep_jit::cuda::Kernel>& kernel, const Args& args) {
@@ -314,13 +320,16 @@ static void sm90_fp8_fp4_mega_moe(
     const int small_ctas = register_weights ? 2 : 1;
     const auto num_sms = runtime->get_num_sms() * small_ctas;
     int64_t* phase_timings_ptr = nullptr;
+    bool profile_rs_stages = false;
     if (phase_timings.has_value()) {
         const auto& timings = *phase_timings;
         DG_HOST_ASSERT(timings.device() == y.device() and timings.is_cuda());
         DG_HOST_ASSERT(timings.scalar_type() == torch::kLong and timings.is_contiguous());
         DG_HOST_ASSERT(timings.dim() == 3 and timings.size(0) == num_sms and
-                       timings.size(1) == kSM90MegaMoEProfilePhases and
                        timings.size(2) == kSM90MegaMoEProfileFields);
+        profile_rs_stages = timings.size(1) == kSM90MegaMoERSProfilePhases;
+        DG_HOST_ASSERT(timings.size(1) == kSM90MegaMoEProfilePhases or
+                       (profile_rs_stages and register_weights and not packed_register_layout));
         phase_timings_ptr = timings.data_ptr<int64_t>();
     }
     const SM90FP8FP4MegaMoERuntime::Args args = {
@@ -340,6 +349,9 @@ static void sm90_fp8_fp4_mega_moe(
         .use_swap_ab = use_swap_ab,
         .use_sparse_dispatch_counts = deep_jit::get_env<int>("DG_SM90_FP4_SPARSE_DISPATCH_COUNTS") != 0,
         .packed_register_layout = packed_register_layout,
+        .pipeline_rs_decode = register_weights and not packed_register_layout and
+                              deep_jit::get_env<bool>("DG_SM90_FP4_RS_PIPELINE"),
+        .profile_rs_stages = profile_rs_stages,
         .config = config,
         .y = y.data_ptr(),
         .cumulative_local_expert_recv_stats = cumulative_local_expert_recv_stats_ptr,
