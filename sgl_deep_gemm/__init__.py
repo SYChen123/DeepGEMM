@@ -549,6 +549,7 @@ def transform_weights_for_mega_moe_sm90_fp4(
 
 
 get_sm90_fp4_register_max_tokens = _C.get_sm90_fp4_register_max_tokens
+get_sm90_fp4_row_major_rs_max_tokens = get_sm90_fp4_register_max_tokens
 
 
 def pack_sm90_fp4_register_weights(weight: torch.Tensor) -> torch.Tensor:
@@ -603,12 +604,16 @@ def fp8_fp4_mega_moe(y: torch.Tensor,
                      *,
                      activation_alpha: Optional[float] = None,
                      activation_linear_beta: Optional[float] = None,
+                     use_sm90_register_weights: bool = False,
                      phase_timings: Optional[torch.Tensor] = None):
     """Run fused MegaMoE, optionally recording SM90 device phase intervals.
 
     The diagnostic buffer must be a zeroed contiguous CUDA int64 tensor with
     shape (grid_ctas, 9, 3). The fields are first entry, last exit, and
     accumulated duration in device nanoseconds, in SM90MegaMoEPhase order.
+
+    Set use_sm90_register_weights on every EP rank to select the RS kernel
+    with the same packed FP4 weight tensors used by the SS kernel.
     """
     if activation == 'situ' and activation_clamp is not None:
         raise ValueError('activation_clamp is not supported with SiTU')
@@ -616,6 +621,8 @@ def fp8_fp4_mega_moe(y: torch.Tensor,
     # Keep v0.2.2's full SM100 interface, including TRT-LLM weight layouts.
     # Dispatch by the output's device rather than the caller's current GPU.
     if not (torch.cuda.is_available() and torch.cuda.get_device_capability(y.device)[0] == 9):
+        if use_sm90_register_weights:
+            raise ValueError('use_sm90_register_weights requires SM90 FP8xFP4 MegaMoE')
         if phase_timings is not None:
             raise ValueError('phase_timings is only supported by SM90 FP8xFP4 MegaMoE')
         if activation_alpha is not None or activation_linear_beta is not None:
@@ -672,7 +679,7 @@ def fp8_fp4_mega_moe(y: torch.Tensor,
         recipe,
         activation, activation_clamp,
         activation_alpha, activation_linear_beta,
-        fast_math,
+        fast_math, use_sm90_register_weights,
         *(() if phase_timings is None else (phase_timings,)),
     )
 

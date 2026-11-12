@@ -386,6 +386,7 @@ template <
     bool kFP4SwapAB               = false,  // weight@M, token@N for small-batch padding relief
     bool kProfilePhases           = false,
     bool kSparseDispatchCounts    = false,
+    bool kPackedRegisterLayout    = false,  // Legacy paired-row FP4 storage
     uint32_t L1_SHAPE_N = kIntermediateHidden * 2,
     uint32_t L1_SHAPE_K = kHidden,
     uint32_t L2_SHAPE_N = kHidden,
@@ -413,7 +414,7 @@ sm90_fp8_fp4_mega_moe_impl(void* y,
                            const __grid_constant__ cute::TmaDescriptor tensor_map_l2_weights,
                            const uint32_t* __restrict__ l2_weights_sf,
                            int64_t* __restrict__ phase_timings) {
-// #if (defined(__CUDA_ARCH__) and (__CUDA_ARCH__ >= 900) and (__CUDA_ARCH__ < 1000)) or defined(__CLION_IDE__)
+#if (defined(__CUDA_ARCH__) and (__CUDA_ARCH__ >= 900) and (__CUDA_ARCH__ < 1000)) or defined(__CLION_IDE__)
     using Barrier = cutlass::arch::ClusterTransactionBarrier;
 
     // =====================================================================
@@ -530,6 +531,8 @@ sm90_fp8_fp4_mega_moe_impl(void* y,
     DG_STATIC_ASSERT(not kFP4SwapAB or kSwapABEligible,
                      "Requested swapAB requires BM64/BN128, two split-N math warpgroups, and no SS N-split");
     constexpr bool kRegisterWeights = kSwapABEligible and BLOCK_M <= 32;
+    DG_STATIC_ASSERT(not kPackedRegisterLayout or kRegisterWeights,
+                     "The paired-row weight layout requires the RS kernel");
     constexpr bool kSwapABL1Active = kSwapABEligible;
     constexpr bool kSwapABL2Active = kSwapABEligible;
     // Flash b4 is assigned a distinct epw16 kernel. Keep one intermediate
@@ -570,7 +573,8 @@ sm90_fp8_fp4_mega_moe_impl(void* y,
     // descriptor. The packed FP4 source tile is linear in the default
     // decode-to-SMEM path because only the dequant code reads it by (row, col).
     constexpr uint32_t kSwizzleBMode        = BLOCK_K * sizeof(b_dtype_t);  // 128
-    constexpr uint32_t kSwizzleBPackedMode  = kRegisterWeights ? 128 : 0;
+    constexpr uint32_t kSwizzleBPackedMode =
+        kPackedRegisterLayout ? 128 : (kRegisterWeights ? 64 : 0);
     constexpr uint32_t kSwizzleCDMode  = 128;
     constexpr uint32_t kNumL1SFAPerBlockK = BLOCK_K / kL1ActsSFGranK;
     constexpr uint32_t kNumL2SFAPerBlockK = BLOCK_K / kL2ActsSFGranK;
@@ -1321,7 +1325,7 @@ sm90_fp8_fp4_mega_moe_impl(void* y,
                     auto b_full_barrier = kUseEarlyBDecode
                         ? decode_full_barriers[stage_idx]
                         : full_barriers[stage_idx];
-                    if constexpr (kRegisterWeights) {
+                    if constexpr (kPackedRegisterLayout) {
                         tma::copy<BLOCK_K, LOAD_BLOCK_N / 2, kSwizzleBPackedMode, b_packed_dtype_t>(
                             tensor_map_b_ptr, b_full_barrier, smem_b_packed[stage_idx],
                             k_idx_packed * 2, n_idx / 2, 1);
@@ -1523,23 +1527,38 @@ sm90_fp8_fp4_mega_moe_impl(void* y,
                 for (uint32_t row_half = 0; row_half < 2; ++row_half) {
                     const uint32_t row = row_half ? row1 : row0;
                     const uint64_t lut = row_half ? lut1 : lut0;
-                    const uint32_t paired_row = row / 2;
-                    // Offline fragment layout packs K[0:4] and K[16:20]
-                    // together, matching registers a0/a2 (a1/a3 at row+8).
-                    const uint32_t paired_col = (row % 2) * (BLOCK_K / 2) +
-                        k_off / 2 + (lane_idx % 4) * 4;
-                    const uint32_t byte_offset = paired_row * BLOCK_K +
-                        (paired_col ^ ((paired_row & 7) * 16));
-                    const uint32_t packed = *reinterpret_cast<const uint32_t*>(
-                        smem_b_packed[stage_idx] + byte_offset);
-                    const uint32_t selectors = packed & 0x77777777u;
-                    uint32_t lo, hi;
-                    asm volatile("prmt.b32 %0, %1, %2, %3;"
-                        : "=r"(lo) : "r"(uint32_t(lut)), "r"(uint32_t(lut >> 32)), "r"(selectors));
-                    asm volatile("prmt.b32 %0, %1, %2, %3;"
-                        : "=r"(hi) : "r"(uint32_t(lut)), "r"(uint32_t(lut >> 32)), "r"(selectors >> 16));
-                    a[row_half] = lo | ((packed << 4) & 0x80808080u);
-                    a[row_half + 2] = hi | (packed & 0x80808080u);
+                    if constexpr (not kPackedRegisterLayout) {
+                        // Standard storage keeps two FP4 values per byte and
+                        // K contiguous. Each register takes four FP4 values.
+                        // The 64B TMA swizzle XORs row bits into the 16B sector.
+                        const uint32_t col = k_off / 2 + (lane_idx % 4) * 2;
+                        const uint32_t row_swizzle = ((row >> 1) & 3) * 16;
+                        const auto* tile_row = smem_b_packed[stage_idx] + row * (BLOCK_K / 2);
+                        const auto lo = *reinterpret_cast<const uint16_t*>(tile_row + (col ^ row_swizzle));
+                        const auto hi = *reinterpret_cast<const uint16_t*>(tile_row + ((col + 8) ^ row_swizzle));
+                        const uint32_t lut_lo = static_cast<uint32_t>(lut);
+                        const uint32_t lut_hi = static_cast<uint32_t>(lut >> 32);
+                        a[row_half] = fp4_decode_detail::fp4x4_to_scaled_e4m3x4_lut(lo, lut_lo, lut_hi);
+                        a[row_half + 2] = fp4_decode_detail::fp4x4_to_scaled_e4m3x4_lut(hi, lut_lo, lut_hi);
+                    } else {
+                        const uint32_t paired_row = row / 2;
+                        // Offline fragment layout packs K[0:4] and K[16:20]
+                        // together, matching registers a0/a2 (a1/a3 at row+8).
+                        const uint32_t paired_col = (row % 2) * (BLOCK_K / 2) +
+                            k_off / 2 + (lane_idx % 4) * 4;
+                        const uint32_t byte_offset = paired_row * BLOCK_K +
+                            (paired_col ^ ((paired_row & 7) * 16));
+                        const uint32_t packed = *reinterpret_cast<const uint32_t*>(
+                            smem_b_packed[stage_idx] + byte_offset);
+                        const uint32_t selectors = packed & 0x77777777u;
+                        uint32_t lo, hi;
+                        asm volatile("prmt.b32 %0, %1, %2, %3;"
+                            : "=r"(lo) : "r"(uint32_t(lut)), "r"(uint32_t(lut >> 32)), "r"(selectors));
+                        asm volatile("prmt.b32 %0, %1, %2, %3;"
+                            : "=r"(hi) : "r"(uint32_t(lut)), "r"(uint32_t(lut >> 32)), "r"(selectors >> 16));
+                        a[row_half] = lo | ((packed << 4) & 0x80808080u);
+                        a[row_half + 2] = hi | (packed & 0x80808080u);
+                    }
                 }
                 #pragma unroll
                 for (uint32_t i = 0; i < 4; ++i)

@@ -838,7 +838,7 @@ void dg_fp8_fp4_mega_moe_sm90(TensorView y, TensorView l1_weights, TensorView l1
                               Optional<double> activation_clamp_opt,
                               Optional<double> activation_alpha_opt,
                               Optional<double> activation_linear_beta_opt,
-                              bool fast_math, ProfileArgs... profile_args) {
+                              bool fast_math, bool use_sm90_register_weights, ProfileArgs... profile_args) {
     auto c_val = cumulative_local_expert_recv_stats.has_value()? std::optional<torch::Tensor>(convert_to_torch_tensor(cumulative_local_expert_recv_stats.value())) : std::nullopt;
     auto act_clamp_opt_val = activation_clamp_opt.has_value()? std::optional<float>(static_cast<float>(activation_clamp_opt.value())) : std::nullopt;
     auto act_alpha_opt_val = activation_alpha_opt.has_value()? std::optional<float>(static_cast<float>(activation_alpha_opt.value())) : std::nullopt;
@@ -859,7 +859,7 @@ void dg_fp8_fp4_mega_moe_sm90(TensorView y, TensorView l1_weights, TensorView l1
         c_val, convert_to_torch_tensor(sym_buffer), sym_buffer_ptrs_val, static_cast<int>(rank_idx),
         static_cast<int>(num_max_tokens_per_rank), static_cast<int>(num_experts),
         static_cast<int>(num_topk), recipe_val, activation, act_clamp_opt_val,
-        act_alpha_opt_val, act_linear_beta_opt_val, fast_math,
+        act_alpha_opt_val, act_linear_beta_opt_val, fast_math, use_sm90_register_weights,
         convert_to_torch_tensor(profile_args)...
     );
 }

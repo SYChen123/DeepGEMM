@@ -71,6 +71,7 @@ public:
         // swapAB path: use decoded weight as WGMMA-M and tokens as WGMMA-N.
         bool use_swap_ab;
         bool use_sparse_dispatch_counts;
+        bool packed_register_layout;
         MegaMoESM90Config config;
 
         // Runtime arguments
@@ -124,6 +125,7 @@ static void __instantiate_kernel() {{
         {},
         {},
         {},
+        {},
         {}
     >);
 }};
@@ -148,7 +150,8 @@ static void __instantiate_kernel() {{
     args.use_ss_nsplit ? "true" : "false",
     args.use_swap_ab ? "true" : "false",
     args.phase_timings != nullptr ? "true" : "false",
-    args.use_sparse_dispatch_counts ? "true" : "false");
+    args.use_sparse_dispatch_counts ? "true" : "false",
+    args.packed_register_layout ? "true" : "false");
     }
 
     static void launch(const std::shared_ptr<deep_jit::cuda::Kernel>& kernel, const Args& args) {
@@ -194,6 +197,7 @@ static void sm90_fp8_fp4_mega_moe(
     const bool& use_ss_nsplit = false,
     const bool& use_swap_ab = false,
     const bool register_weights = false,
+    const bool packed_register_layout = false,
     const std::optional<torch::Tensor>& phase_timings = std::nullopt
 ) {
     const auto num_ranks = static_cast<int>(sym_buffer_ptrs.size());
@@ -238,7 +242,8 @@ static void sm90_fp8_fp4_mega_moe(
         ? l1_weights : l1_weights.view(torch::kByte);
     const auto l2_weights_bytes = l2_weights.scalar_type() == torch::kByte
         ? l2_weights : l2_weights.view(torch::kByte);
-    const auto tensor_map_l1_weights = register_weights
+    const int packed_swizzle = register_weights ? 64 : config.swizzle_weights_mode;
+    const auto tensor_map_l1_weights = packed_register_layout
         ? make_tma_2d_desc(l1_weights_bytes,
             hidden, num_experts_per_rank * intermediate_hidden,
             config.block_k, config.block_n / 2, hidden, 128, 0, false)
@@ -246,7 +251,7 @@ static void sm90_fp8_fp4_mega_moe(
             hidden / 2, num_experts_per_rank * intermediate_hidden * 2,
             config.block_k / 2, config.block_n,
             static_cast<int>(l1_weights_bytes.stride(-2)),
-            config.swizzle_weights_mode, 0, false);
+            packed_swizzle, 0, false);
 
     // L1 output (post-SwiGLU FP8): N is halved.
     // Mirror the FP8 split-N infrastructure: when BLOCK_M=64 and the host
@@ -291,7 +296,7 @@ static void sm90_fp8_fp4_mega_moe(
                                                         config.block_m, kSM90FP4L2ActSFGranK,
                                                         1, 0, 0, false,
                                                         config.block_k / kSM90FP4L2ActSFGranK);
-    const auto tensor_map_l2_weights = register_weights
+    const auto tensor_map_l2_weights = packed_register_layout
         ? make_tma_2d_desc(l2_weights_bytes,
             intermediate_hidden, num_experts_per_rank * hidden / 2,
             config.block_k, config.block_n / 2, intermediate_hidden, 128, 0, false)
@@ -299,7 +304,7 @@ static void sm90_fp8_fp4_mega_moe(
             intermediate_hidden / 2, num_experts_per_rank * hidden,
             config.block_k / 2, config.block_n,
             static_cast<int>(l2_weights_bytes.stride(-2)),
-            config.swizzle_weights_mode, 0, false);
+            packed_swizzle, 0, false);
 
     // Stats can be optional
     int* cumulative_local_expert_recv_stats_ptr = nullptr;
@@ -334,6 +339,7 @@ static void sm90_fp8_fp4_mega_moe(
         .use_ss_nsplit = use_ss_nsplit,
         .use_swap_ab = use_swap_ab,
         .use_sparse_dispatch_counts = deep_jit::get_env<int>("DG_SM90_FP4_SPARSE_DISPATCH_COUNTS") != 0,
+        .packed_register_layout = packed_register_layout,
         .config = config,
         .y = y.data_ptr(),
         .cumulative_local_expert_recv_stats = cumulative_local_expert_recv_stats_ptr,

@@ -64,8 +64,8 @@ struct FP4SM90APIDefaults {
     bool swap_ab;
 };
 
-// Limit the RS weight layout independently of the swapAB density heuristic.
-static constexpr int kSM90FP4RegisterMaxTokens = 63;
+// Maximum number of input rows per rank for the V4.1 Flash EP4 RS kernel.
+static constexpr int kSM90FP4RegisterMaxTokens = 128;
 
 static FP4SM90APIDefaults get_fp4_sm90_api_defaults(
     const int& num_experts_per_rank, const int& num_tokens, const int& num_topk,
@@ -304,16 +304,18 @@ static void fp8_fp4_mega_moe_sm90(
     const std::optional<float>& activation_alpha_opt,
     const std::optional<float>& activation_linear_beta_opt,
     const bool& fast_math,
+    const bool use_sm90_register_weights,
     const std::optional<torch::Tensor>& phase_timings = std::nullopt
 ) {
     const auto [l1_storage, l1_weights_sf] = l1_weights_tuple;
     const auto [l2_storage, l2_weights_sf] = l2_weights_tuple;
-    const bool register_weights = l1_storage.dim() == 4;
-    DG_HOST_ASSERT(register_weights == (l2_storage.dim() == 4));
-    if (register_weights)
+    const bool packed_register_layout = l1_storage.dim() == 4;
+    DG_HOST_ASSERT(packed_register_layout == (l2_storage.dim() == 4));
+    if (packed_register_layout)
         DG_HOST_ASSERT(l1_storage.size(3) == 1 and l2_storage.size(3) == 1);
-    const auto l1_weights = register_weights ? l1_storage.squeeze(3) : l1_storage;
-    const auto l2_weights = register_weights ? l2_storage.squeeze(3) : l2_storage;
+    const auto l1_weights = packed_register_layout ? l1_storage.squeeze(3) : l1_storage;
+    const auto l2_weights = packed_register_layout ? l2_storage.squeeze(3) : l2_storage;
+    const bool register_weights = use_sm90_register_weights or packed_register_layout;
 
     const auto arch_major = jit->device.get_arch_major();
     DG_HOST_ASSERT(arch_major == 9);
@@ -402,7 +404,7 @@ static void fp8_fp4_mega_moe_sm90(
                           fp4_defaults.early_b_decode,
                           fp4_defaults.decode_done_mbarrier,
                           fp4_defaults.ss_nsplit,
-                          fp4_defaults.swap_ab, register_weights, phase_timings);
+                          fp4_defaults.swap_ab, register_weights, packed_register_layout, phase_timings);
 
     if (deep_jit::get_env<int>("DG_COMM_KERNEL_DEBUG"))
         sym_buffer.zero_();
