@@ -305,6 +305,7 @@ static void fp8_fp4_mega_moe_sm90(
     const std::optional<float>& activation_linear_beta_opt,
     const bool& fast_math,
     const bool use_sm90_register_weights,
+    const bool use_sm90_packed_ss,
     const std::optional<torch::Tensor>& phase_timings = std::nullopt
 ) {
     const auto [l1_storage, l1_weights_sf] = l1_weights_tuple;
@@ -315,7 +316,9 @@ static void fp8_fp4_mega_moe_sm90(
         DG_HOST_ASSERT(l1_storage.size(3) == 1 and l2_storage.size(3) == 1);
     const auto l1_weights = packed_register_layout ? l1_storage.squeeze(3) : l1_storage;
     const auto l2_weights = packed_register_layout ? l2_storage.squeeze(3) : l2_storage;
-    const bool register_weights = use_sm90_register_weights or packed_register_layout;
+    DG_HOST_ASSERT(not use_sm90_packed_ss or (packed_register_layout and not use_sm90_register_weights));
+    const bool register_weights =
+        use_sm90_register_weights or (packed_register_layout and not use_sm90_packed_ss);
 
     const auto arch_major = jit->device.get_arch_major();
     DG_HOST_ASSERT(arch_major == 9);
@@ -379,10 +382,13 @@ static void fp8_fp4_mega_moe_sm90(
 
     const auto fp4_defaults = get_fp4_sm90_api_defaults(
         num_experts_per_rank, num_tokens, num_topk, use_situ);
-    if (register_weights) {
+    if (register_weights or packed_register_layout) {
         DG_HOST_ASSERT(hidden == 5120 and intermediate_hidden == 2304);
         DG_HOST_ASSERT(num_ranks == 4 and num_experts == 384 and num_topk == 6);
-        DG_HOST_ASSERT(num_tokens > 0 and num_tokens <= kSM90FP4RegisterMaxTokens and not use_situ);
+        DG_HOST_ASSERT(not use_situ);
+    }
+    if (register_weights) {
+        DG_HOST_ASSERT(num_tokens > 0 and num_tokens <= kSM90FP4RegisterMaxTokens);
         DG_HOST_ASSERT(fp4_defaults.swap_ab and not fp4_defaults.early_b_decode);
     }
     sm90_fp8_fp4_mega_moe(y,

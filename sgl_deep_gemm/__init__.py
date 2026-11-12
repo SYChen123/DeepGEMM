@@ -512,9 +512,11 @@ def transform_weights_for_mega_moe_sm90(
 
 def transform_weights_for_mega_moe_sm90_fp4(
     l1_weights: Tuple[torch.Tensor, torch.Tensor],
-    l2_weights: Tuple[torch.Tensor, torch.Tensor]
+    l2_weights: Tuple[torch.Tensor, torch.Tensor],
+    *,
+    pack_for_register_weights: bool = False,
 ) -> Tuple[Tuple[torch.Tensor, torch.Tensor], Tuple[torch.Tensor, torch.Tensor]]:
-    """Pack SM90 FP4 MegaMoE weights without changing the generic mega module."""
+    """Interleave SM90 FP4 W13 and optionally use paired-row FP4 storage."""
     def _interleave_one(t, gran: int = 8) -> torch.Tensor:
         g, n, *rest = t.shape
         half = n // 2
@@ -541,6 +543,9 @@ def transform_weights_for_mega_moe_sm90_fp4(
     l2_fp4 = _as_packed_fp4_storage(l2_fp4)
     l1_fp4 = _interleave_one(l1_fp4)
     l1_sf_fp32 = _interleave_one(l1_sf_fp32)
+    if pack_for_register_weights:
+        l1_fp4 = pack_sm90_fp4_register_weights(l1_fp4)
+        l2_fp4 = pack_sm90_fp4_register_weights(l2_fp4)
     return (
         (l1_fp4, _pack_fp32_sf_to_ue8m0_kmajor(l1_sf_fp32)),
         (l2_fp4, _pack_fp32_sf_to_ue8m0_kmajor(l2_sf_fp32)),
@@ -556,7 +561,8 @@ def pack_sm90_fp4_register_weights(weight: torch.Tensor) -> torch.Tensor:
     """Repack an interleaved SM90 FP4 weight for the small-shape RS kernel.
 
     The final singleton dimension tags the physical layout at the native
-    boundary. The UE8M0 scale tensor keeps its ordinary layout.
+    boundary. It selects RS by default and also supports the SM90 SS fallback.
+    The UE8M0 scale tensor keeps its ordinary layout.
     """
     if weight.ndim != 3 or weight.dtype != torch.int8:
         raise ValueError("Expected a rank-3 interleaved SM90 packed INT8 weight")
@@ -605,6 +611,7 @@ def fp8_fp4_mega_moe(y: torch.Tensor,
                      activation_alpha: Optional[float] = None,
                      activation_linear_beta: Optional[float] = None,
                      use_sm90_register_weights: bool = False,
+                     use_sm90_packed_ss: bool = False,
                      phase_timings: Optional[torch.Tensor] = None):
     """Run fused MegaMoE, optionally recording SM90 device phase intervals.
 
@@ -617,6 +624,8 @@ def fp8_fp4_mega_moe(y: torch.Tensor,
 
     Set use_sm90_register_weights on every EP rank to select the RS kernel
     with the same packed FP4 weight tensors used by the SS kernel.
+    Paired-row weights select RS by default. Set use_sm90_packed_ss on every
+    EP rank to run the SS kernel on those same paired-row tensors.
     DG_SM90_FP4_RS_EARLY_B_DECODE=1 lets RS decode weights before A/SFA arrives
     and takes precedence over DG_SM90_FP4_RS_PIPELINE.
     """
@@ -628,6 +637,8 @@ def fp8_fp4_mega_moe(y: torch.Tensor,
     if not (torch.cuda.is_available() and torch.cuda.get_device_capability(y.device)[0] == 9):
         if use_sm90_register_weights:
             raise ValueError('use_sm90_register_weights requires SM90 FP8xFP4 MegaMoE')
+        if use_sm90_packed_ss:
+            raise ValueError('use_sm90_packed_ss requires SM90 FP8xFP4 MegaMoE')
         if phase_timings is not None:
             raise ValueError('phase_timings is only supported by SM90 FP8xFP4 MegaMoE')
         if activation_alpha is not None or activation_linear_beta is not None:
@@ -684,7 +695,7 @@ def fp8_fp4_mega_moe(y: torch.Tensor,
         recipe,
         activation, activation_clamp,
         activation_alpha, activation_linear_beta,
-        fast_math, use_sm90_register_weights,
+        fast_math, use_sm90_register_weights, use_sm90_packed_ss,
         *(() if phase_timings is None else (phase_timings,)),
     )
 

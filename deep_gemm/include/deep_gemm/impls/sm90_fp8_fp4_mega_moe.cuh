@@ -318,12 +318,58 @@ __device__ __forceinline__ void dequant_fp4_b_tile_to_e4m3_smem_vec_store(
     }
 }
 
+__device__ __forceinline__ void decode_sm90_fp4_paired_word(
+    uint32_t packed, uint64_t lut, uint32_t& lo, uint32_t& hi) {
+    const uint32_t selectors = packed & 0x77777777u;
+    asm volatile("prmt.b32 %0, %1, %2, %3;"
+        : "=r"(lo) : "r"(uint32_t(lut)), "r"(uint32_t(lut >> 32)), "r"(selectors));
+    asm volatile("prmt.b32 %0, %1, %2, %3;"
+        : "=r"(hi) : "r"(uint32_t(lut)), "r"(uint32_t(lut >> 32)), "r"(selectors >> 16));
+    lo |= (packed << 4) & 0x80808080u;
+    hi |= packed & 0x80808080u;
+}
+
+template <
+    uint32_t LOAD_BLOCK_N,
+    uint32_t BLOCK_K,
+    uint32_t kNumSFBPerBlockK,
+    typename PackedT,
+    typename DecodedT>
+__device__ __forceinline__ void dequant_sm90_fp4_paired_tile_to_smem(
+    uint32_t thread_idx, uint32_t num_threads,
+    const PackedT* __restrict__ packed_tile,
+    DecodedT* __restrict__ decoded_tile,
+    const uint32_t* __restrict__ sfb_tile) {
+    static_assert(BLOCK_K == 128 and kNumSFBPerBlockK == 4);
+    for (uint32_t group = thread_idx; group < LOAD_BLOCK_N * kNumSFBPerBlockK; group += num_threads) {
+        const uint32_t row = group / kNumSFBPerBlockK;
+        const uint32_t kg = group % kNumSFBPerBlockK;
+        const uint32_t paired_row = row / 2;
+        const uint32_t paired_col = (row % 2) * (BLOCK_K / 2) + kg * 16;
+        const uint32_t offset = paired_row * BLOCK_K + (paired_col ^ ((paired_row & 7) * 16));
+        const uint4 packed = *reinterpret_cast<const uint4*>(packed_tile + offset);
+        const uint32_t e8m0 = (sfb_tile[row] >> (kg * 8)) & 255;
+        const uint64_t lut = fp4_decode_detail::pack_scaled_e4m3_lut_from_e8m0_const(e8m0);
+        // Each source word contains four values from each half of the K32 group.
+        uint32_t lo0, lo1, lo2, lo3, hi0, hi1, hi2, hi3;
+        decode_sm90_fp4_paired_word(packed.x, lut, lo0, hi0);
+        decode_sm90_fp4_paired_word(packed.y, lut, lo1, hi1);
+        decode_sm90_fp4_paired_word(packed.z, lut, lo2, hi2);
+        decode_sm90_fp4_paired_word(packed.w, lut, lo3, hi3);
+        auto* row_out = reinterpret_cast<uint64_t*>(decoded_tile + row * BLOCK_K);
+        const uint32_t row_swizzle = row & 7;
+        ptx::st_shared(row_out + ((2 * kg) ^ row_swizzle) * 2, lo0, lo1, lo2, lo3);
+        ptx::st_shared(row_out + ((2 * kg + 1) ^ row_swizzle) * 2, hi0, hi1, hi2, hi3);
+    }
+}
+
 template <
     uint32_t LOAD_BLOCK_N,
     uint32_t BLOCK_K,
     uint32_t kScaleBGranK,
     uint32_t kNumSFBPerBlockK,
     bool kUseWideLoadDecode,
+    bool kPackedRegisterLayout,
     typename PackedT,
     typename DecodedT>
 __device__ __forceinline__ void dequant_fp4_b_tile_to_e4m3_smem_dispatch(
@@ -332,7 +378,11 @@ __device__ __forceinline__ void dequant_fp4_b_tile_to_e4m3_smem_dispatch(
     const PackedT* __restrict__ smem_b_packed_stage,
     DecodedT* __restrict__ smem_b_stage,
     const uint32_t* __restrict__ smem_sfb_stage) {
-    if constexpr (kUseWideLoadDecode) {
+    if constexpr (kPackedRegisterLayout) {
+        dequant_sm90_fp4_paired_tile_to_smem<LOAD_BLOCK_N, BLOCK_K, kNumSFBPerBlockK>(
+            decode_thread_idx, num_decode_threads,
+            smem_b_packed_stage, smem_b_stage, smem_sfb_stage);
+    } else if constexpr (kUseWideLoadDecode) {
         dequant_fp4_b_tile_to_e4m3_smem_wide_load<
             LOAD_BLOCK_N, BLOCK_K, kScaleBGranK, kNumSFBPerBlockK>(
             decode_thread_idx, num_decode_threads,
@@ -386,7 +436,7 @@ template <
     bool kFP4SwapAB               = false,  // weight@M, token@N for small-batch padding relief
     bool kProfilePhases           = false,
     bool kSparseDispatchCounts    = false,
-    bool kPackedRegisterLayout    = false,  // Legacy paired-row FP4 storage
+    bool kPackedRegisterLayout    = false,  // Paired-row FP4 storage
     bool kPipelineRSDecode        = false,
     bool kProfileRSStages         = false,
     uint32_t L1_SHAPE_N = kIntermediateHidden * 2,
@@ -534,8 +584,6 @@ sm90_fp8_fp4_mega_moe_impl(void* y,
                      "Requested swapAB requires BM64/BN128, two split-N math warpgroups, and no SS N-split");
     constexpr bool kRegisterWeights = kSwapABEligible and BLOCK_M <= 32;
     constexpr bool kRSEarlyBDecode = kRegisterWeights and kEarlyBDecode;
-    DG_STATIC_ASSERT(not kPackedRegisterLayout or kRegisterWeights,
-                     "The paired-row weight layout requires the RS kernel");
     DG_STATIC_ASSERT(not kPipelineRSDecode or (kRegisterWeights and not kPackedRegisterLayout),
                      "Pipelined RS decode requires standard packed FP4 weights");
     DG_STATIC_ASSERT(not kRSEarlyBDecode or (not kPipelineRSDecode and not kDecodeDoneMBarrier),
@@ -927,7 +975,7 @@ sm90_fp8_fp4_mega_moe_impl(void* y,
                                   const uint32_t& decode_thread_idx) {
         dequant_fp4_b_tile_to_e4m3_smem_dispatch<
             LOAD_BLOCK_N, BLOCK_K, kScaleBGranK, kNumSFBPerBlockK,
-            kUseWideLoadDecode>(
+            kUseWideLoadDecode, kPackedRegisterLayout>(
             decode_thread_idx, kNumFP4DecodeWorkerThreads,
             smem_b_packed[cur_stage_idx], smem_b[cur_stage_idx], smem_sfb[cur_stage_idx]);
         arrive_or_sync_fp4_decode_done(cur_stage_idx);
@@ -1607,14 +1655,7 @@ sm90_fp8_fp4_mega_moe_impl(void* y,
                             (paired_col ^ ((paired_row & 7) * 16));
                         const uint32_t packed = *reinterpret_cast<const uint32_t*>(
                             smem_b_packed[stage_idx] + byte_offset);
-                        const uint32_t selectors = packed & 0x77777777u;
-                        uint32_t lo, hi;
-                        asm volatile("prmt.b32 %0, %1, %2, %3;"
-                            : "=r"(lo) : "r"(uint32_t(lut)), "r"(uint32_t(lut >> 32)), "r"(selectors));
-                        asm volatile("prmt.b32 %0, %1, %2, %3;"
-                            : "=r"(hi) : "r"(uint32_t(lut)), "r"(uint32_t(lut >> 32)), "r"(selectors >> 16));
-                        a[row_half] = lo | ((packed << 4) & 0x80808080u);
-                        a[row_half + 2] = hi | (packed & 0x80808080u);
+                        decode_sm90_fp4_paired_word(packed, lut, a[row_half], a[row_half + 2]);
                     }
                 }
                 #pragma unroll
