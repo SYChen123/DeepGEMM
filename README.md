@@ -32,6 +32,20 @@ Despite its lightweight design, DeepGEMM's performance matches or exceeds expert
 - PyTorch 2.3 or higher
 - CUTLASS 4.0 or higher (could be cloned by Git submodule)
 
+### Build the SGLang wheel
+
+For SGLang, build and install the `sgl-deep-gemm` distribution from this
+branch. It exposes the `deep_gemm` import through TVM FFI.
+
+```bash
+bash build_sgl_deep_gemm.sh
+python -m pip install --no-deps --force-reinstall dist/sgl_deep_gemm-0.2.2+sm90pr473-*.whl
+```
+
+See [the SGLang packaging requirements](sgl_deep_gemm/README.md) for
+build dependencies. The source-development and setuptools commands below
+describe the upstream DeepGEMM package.
+
 ### Development
 
 ```bash

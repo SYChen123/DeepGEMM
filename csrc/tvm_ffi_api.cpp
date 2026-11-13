@@ -23,6 +23,7 @@
 #include "apis/mega_gate.hpp"
 #include "apis/mega_mhc.hpp"
 #include "apis/sm90_mega.hpp"
+#include "apis/sm90_fused_mega.hpp"
 #include "utils/torch_compat.hpp"
 
 
@@ -750,6 +751,77 @@ dg_get_symm_buffer_size_for_sm90_mega_moe(int64_t num_ranks, int64_t num_experts
         num_bytes, slice_input_buffers);
 }
 
+using SM90FusedMegaSlice = Tuple<Tensor, Tensor, Tensor, Tensor, Tensor, Tensor, Tensor, Tensor>;
+
+int64_t dg_get_token_alignment_for_sm90_fused_mega_moe() {
+    return sm90_fused_mega::get_token_alignment_for_sm90_fused_mega_moe();
+}
+
+Tuple<int64_t, TypedFunction<SM90FusedMegaSlice(TensorView)>, int64_t, int64_t>
+dg_get_symm_buffer_size_for_sm90_fused_mega_moe(
+    int64_t num_ranks, int64_t num_experts, int64_t capacity_per_rank, int64_t num_topk,
+    int64_t hidden, int64_t intermediate, bool use_fp8_dispatch, std::string activation,
+    int64_t num_experts_per_wave, int64_t l2_act_sf_gran_k) {
+    auto [num_bytes, slice, ring_tokens, l2_lag] = sm90_fused_mega::get_symm_buffer_size_for_sm90_fused_mega_moe(
+        num_ranks, num_experts, capacity_per_rank, num_topk, hidden, intermediate,
+        use_fp8_dispatch, activation, num_experts_per_wave, l2_act_sf_gran_k);
+    auto slice_input_buffers = [slice](TensorView buffer) {
+        auto [x, x_sf, topk_idx, topk_weights, l1, l1_sf, l2, l2_sf] = slice(convert_to_torch_tensor(buffer));
+        return SM90FusedMegaSlice(
+            Tensor::FromDLPack(at::toDLPack(x.view(at::kChar))),
+            Tensor::FromDLPack(at::toDLPack(x_sf)),
+            Tensor::FromDLPack(at::toDLPack(topk_idx)),
+            Tensor::FromDLPack(at::toDLPack(topk_weights)),
+            Tensor::FromDLPack(at::toDLPack(l1.view(at::kChar))),
+            Tensor::FromDLPack(at::toDLPack(l1_sf)),
+            Tensor::FromDLPack(at::toDLPack(l2.view(at::kChar))),
+            Tensor::FromDLPack(at::toDLPack(l2_sf)));
+    };
+    return Tuple<int64_t, TypedFunction<SM90FusedMegaSlice(TensorView)>, int64_t, int64_t>(
+        num_bytes, slice_input_buffers, ring_tokens, l2_lag);
+}
+
+static std::vector<int64_t> sm90_fused_buffer_ptrs(const Array<int64_t>& ptrs) {
+    return {ptrs.begin(), ptrs.end()};
+}
+
+static std::tuple<int, int, int> sm90_fused_recipe(const Tuple<int64_t, int64_t, int64_t>& recipe) {
+    const auto [a, b, c] = recipe;
+    return {a, b, c};
+}
+
+void dg_sm90_fused_fp8_mxfp4_mega_moe(
+    TensorView y, TensorView w1, TensorView sfb1, TensorView secondary1,
+    TensorView w2, TensorView sfb2, TensorView secondary2,
+    Optional<TensorView> stats, TensorView buffer, Array<int64_t> ptrs, int64_t rank,
+    int64_t capacity_per_rank, int64_t num_experts, int64_t num_topk,
+    Tuple<int64_t, int64_t, int64_t> recipe, std::string activation, Optional<double> clamp,
+    bool fast_math, int64_t ring_tokens, int64_t num_tokens_bound,
+    int64_t l2_lag, int64_t l2_act_sf_gran_k, bool split_k) {
+    sm90_fused_mega::sm90_fused_fp8_mxfp4_mega_moe(
+        convert_to_torch_tensor(y),
+        {convert_to_torch_tensor(w1), convert_to_torch_tensor(sfb1), convert_to_torch_tensor(secondary1)},
+        {convert_to_torch_tensor(w2), convert_to_torch_tensor(sfb2), convert_to_torch_tensor(secondary2)},
+        to_optional_tensor(stats), convert_to_torch_tensor(buffer), sm90_fused_buffer_ptrs(ptrs), rank,
+        capacity_per_rank, num_experts, num_topk, sm90_fused_recipe(recipe), activation,
+        to_optional_float(clamp), fast_math, ring_tokens, num_tokens_bound, l2_lag, l2_act_sf_gran_k, split_k);
+}
+
+void dg_sm90_fused_fp8_mega_moe(
+    TensorView y, TensorView w1, TensorView sf1, TensorView w2, TensorView sf2,
+    Optional<TensorView> stats, TensorView buffer, Array<int64_t> ptrs, int64_t rank,
+    int64_t capacity_per_rank, int64_t num_experts, int64_t num_topk,
+    Tuple<int64_t, int64_t, int64_t> recipe, std::string activation, Optional<double> clamp,
+    bool fast_math, int64_t ring_tokens, int64_t num_tokens_bound, int64_t l2_lag, int64_t l2_act_sf_gran_k) {
+    sm90_fused_mega::sm90_fused_fp8_mega_moe(
+        convert_to_torch_tensor(y),
+        {convert_to_torch_tensor(w1).view(torch::kFloat8_e4m3fn), convert_to_torch_tensor(sf1)},
+        {convert_to_torch_tensor(w2).view(torch::kFloat8_e4m3fn), convert_to_torch_tensor(sf2)},
+        to_optional_tensor(stats), convert_to_torch_tensor(buffer), sm90_fused_buffer_ptrs(ptrs), rank,
+        capacity_per_rank, num_experts, num_topk, sm90_fused_recipe(recipe), activation,
+        to_optional_float(clamp), fast_math, ring_tokens, num_tokens_bound, l2_lag, l2_act_sf_gran_k);
+}
+
 void dg_fp8_fp4_mega_moe(TensorView y, TensorView l1_weights, TensorView l1_weights_sf, TensorView l2_weights, TensorView l2_weights_sf,
                         Optional<TensorView> shared_l1_weights, Optional<TensorView> shared_l1_weights_sf,
                         Optional<TensorView> shared_l2_weights, Optional<TensorView> shared_l2_weights_sf,
@@ -901,6 +973,10 @@ TVM_FFI_DLL_EXPORT_TYPED_FUNC(get_token_alignment_for_mega_moe, dg_get_token_ali
 TVM_FFI_DLL_EXPORT_TYPED_FUNC(get_block_m_for_mega_moe, dg_get_block_m_for_mega_moe);
 TVM_FFI_DLL_EXPORT_TYPED_FUNC(get_symm_buffer_size_for_mega_moe, dg_get_symm_buffer_size_for_mega_moe);
 TVM_FFI_DLL_EXPORT_TYPED_FUNC(get_symm_buffer_size_for_sm90_mega_moe, dg_get_symm_buffer_size_for_sm90_mega_moe);
+TVM_FFI_DLL_EXPORT_TYPED_FUNC(get_token_alignment_for_sm90_fused_mega_moe, dg_get_token_alignment_for_sm90_fused_mega_moe);
+TVM_FFI_DLL_EXPORT_TYPED_FUNC(get_symm_buffer_size_for_sm90_fused_mega_moe, dg_get_symm_buffer_size_for_sm90_fused_mega_moe);
+TVM_FFI_DLL_EXPORT_TYPED_FUNC(sm90_fused_fp8_mxfp4_mega_moe, dg_sm90_fused_fp8_mxfp4_mega_moe);
+TVM_FFI_DLL_EXPORT_TYPED_FUNC(sm90_fused_fp8_mega_moe, dg_sm90_fused_fp8_mega_moe);
 TVM_FFI_DLL_EXPORT_TYPED_FUNC(fp8_fp4_mega_moe, dg_fp8_fp4_mega_moe);
 TVM_FFI_DLL_EXPORT_TYPED_FUNC(bf16_mega_moe, dg_bf16_mega_moe);
 TVM_FFI_DLL_EXPORT_TYPED_FUNC(fp8_mega_moe, dg_fp8_mega_moe);

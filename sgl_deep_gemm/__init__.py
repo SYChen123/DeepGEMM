@@ -380,6 +380,11 @@ def mega_mhc(x, residual, shifted_prev_mix, post_mix, comb_res_mix, fn, mix_scal
 # Mega kernels
 from . import mega
 from .mega import (
+    SM90FusedSymmBuffer,
+    fp8_fused_mega_moe_sm90,
+    fp8_mxfp4_mega_moe,
+    get_symm_buffer_for_sm90_fused_mega_moe,
+    transform_weights_for_fp8_mxfp4_fused_mega_moe_sm90,
     SymmBuffer,
     transform_weights_for_mega_moe,
     transform_scales_for_mega_moe,
