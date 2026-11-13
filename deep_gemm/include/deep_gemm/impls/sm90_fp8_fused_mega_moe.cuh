@@ -229,17 +229,27 @@ sm90_fp8_fused_mega_moe_impl(void* y,
     // Event trace (kTrace only): `trace` is [kNumSMs][4 roles][kTraceSlots] pairs of
     // (event_id << 56 | aux, %globaltimer ns), written with plain stores by ONE thread per role:
     // role 0 = dispatch warp 0 lane 0, 1 = A/SFA loader lane 0, 2 + g = math warpgroup g warp 0 lane 0.
-    // Slots past kTraceSlots are dropped, never written.
+    // Reserve one footer slot for the attempted event count and six math slots
+    // for the cycle counters. Keep the upstream buffer shape.
     constexpr uint32_t kTraceSlots = 2048;
+    constexpr uint32_t kTraceCycleSlots = 6;
     uint32_t trace_slot = 0;
     const auto trace_event_at = [&](const uint32_t& role, const uint32_t& event_id, const uint64_t& aux, const uint64_t& t) {
         if constexpr (kTrace) {
-            if (trace_slot < kTraceSlots) {
+            const auto event_limit = kTraceSlots - 1 - (role >= 2 ? kTraceCycleSlots : 0);
+            if (trace_slot < event_limit) {
                 auto ptr = trace + ((static_cast<uint64_t>(sm_idx) * 4 + role) * kTraceSlots + trace_slot) * 2;
                 ptr[0] = (static_cast<uint64_t>(event_id) << 56) | (aux & 0x00ffffffffffffffull);
                 ptr[1] = t;
             }
             ++ trace_slot;
+        }
+    };
+    const auto trace_finish = [&](const uint32_t role) {
+        if constexpr (kTrace) {
+            auto ptr = trace + ((static_cast<uint64_t>(sm_idx) * 4 + role) * kTraceSlots + kTraceSlots - 1) * 2;
+            ptr[0] = trace_slot;
+            ptr[1] = 1;  // Footer present, including roles with zero events.
         }
     };
     const auto trace_event = [&](const uint32_t& role, const uint32_t& event_id, const uint64_t& aux) {
@@ -1450,7 +1460,10 @@ sm90_fp8_fused_mega_moe_impl(void* y,
         // TILES_DONE = tag-2 grid sync 1) and their next users are in the next launch, behind the kernel boundary; the
         // remotely written words are bank words, zeroed by the next launch after its head. Nothing to wait for: the
         // dispatch warps exit while the math warps combine.
-        trace_dispatch(22, 0);  // KERNEL_END (dispatch warp's last statement)
+        trace_dispatch(22, 0);  // DISPATCH_END (math may still be combining)
+        if constexpr (kTrace)
+            if (warp_idx == 0 and lane_idx == 0)
+                trace_finish(0);
 
     // =====================================================================
     // ROLE 2: GEMM TMA LOAD warps (warp 0 of `kNumNonEpilogueThreads` loads A + SFA, warp 1 loads B + SFB)
@@ -1582,6 +1595,10 @@ sm90_fp8_fused_mega_moe_impl(void* y,
                     std::integral_constant<sched::BlockPhase, sched::BlockPhase::Linear2>{},
                     local_expert_idx, num_k_blocks, m_block_idx, n_block_idx);
             });
+
+        if constexpr (kTrace)
+            if (lane_idx == 0)
+                trace_finish(1);
 
     } else if (warp_idx == kNumDispatchWarps + 1) {
         cutlass::arch::warpgroup_reg_dealloc<kNumNonEpilogueRegisters>();
@@ -5161,7 +5178,7 @@ sm90_fp8_fused_mega_moe_impl(void* y,
         trace_math(19, trace_tile);   // TILES_DONE (aux = number of tiles this CTA ran)
         if constexpr (kTrace) {
             if (warp_idx_in_wg == 0 and lane_idx == 0 and epilogue_wg_idx < 2) {
-                auto ptr = trace + ((static_cast<uint64_t>(sm_idx) * 4 + 2 + epilogue_wg_idx) * kTraceSlots + kTraceSlots - 6) * 2;
+                auto ptr = trace + ((static_cast<uint64_t>(sm_idx) * 4 + 2 + epilogue_wg_idx) * kTraceSlots + kTraceSlots - 1 - kTraceCycleSlots) * 2;
                 #pragma unroll
                 for (uint32_t i = 0; i < 12; ++ i)
                     ptr[i] = prof_total[i / 6][i % 6];
@@ -5768,6 +5785,9 @@ sm90_fp8_fused_mega_moe_impl(void* y,
             }
         }
         trace_math(21, num_combined | (static_cast<uint64_t>(num_ec_skipped) << 16));   // COMBINE_END (aux: tokens combined | skipped (early combine) << 16)
+        if constexpr (kTrace)
+            if (warp_idx_in_wg == 0 and lane_idx == 0 and epilogue_wg_idx < 2)
+                trace_finish(2 + epilogue_wg_idx);
     }
 #else
     if (blockIdx.x == 0 and threadIdx.x == 0)
