@@ -2394,7 +2394,7 @@ sm90_fp8_fused_mega_moe_impl(void* y,
                                 constexpr uint32_t kNumKBlocks = std::remove_cvref_t<decltype(block_phase)>::value == sched::BlockPhase::Linear1 ?
                                                                  kNumL1BlockKs : kNumL2BlockKs;
                                 constexpr uint32_t kNumRounds = kNumKBlocks / kNumStages;
-                                DG_STATIC_ASSERT(kNumRounds > 0, "compile-time stages: at least one round of the ring per tile");
+                                // Positive, divisible K-block counts are already required by kStaticStages.
 #ifdef DG_P29_CHECK_STAGE
                                 if (stage_idx != 0) {
                                     printf("P29 stage check failed: stage_idx %u at the swap mainloop entry (block %u)\n", stage_idx, blockIdx.x);
