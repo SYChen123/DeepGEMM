@@ -14,14 +14,6 @@ launch boundaries and instrument the fused kernel on device. The instrumented
 variant adds timestamp writes and synchronization. Its phase windows include
 waits and may overlap, so use the clean total for latency comparisons.
 
-To export a PyTorch Profiler trace from the same CUDA Graph after timing:
-    torchrun --standalone --nproc-per-node=4 scripts/bench_sm90_w4a8_megamoe.py \
-        --shape decode --torch-profile-dir profiles --torch-profile-iters 3
-
-Each rank writes a Chrome trace for each benchmark variant. Graph mode records
-the CPU replay stack, CUDA activity and benchmark shape metadata. Use
---timing eager to also see per-operator CPU stacks and tensor input shapes.
-
 For NCU 2025.3, profile rank 0 only and keep all four ranks in the workload:
     DG_JIT_WITH_LINEINFO=1 torchrun --standalone --nproc-per-node=4 --no-python \
         bash -c 'if test "$LOCAL_RANK" = 0; then
@@ -47,12 +39,6 @@ use coordinated application replay for larger metric sets on all four ranks:
 
 You can narrow the capture to an NVTX stage such as 'fused/', 'all_reduce/',
 or 'l1_gemm/'.
-
-脚本运行方式（参考以上方式采集ncu profile）
-torchrun --standalone --nproc-per-node=4 \
-    /home/workspace/code/DeepGEMM/scripts/bench_sm90_w4a8_megamoe.py --shape decode --output bench_moe.json \
-    --mega-layout register \
-    --torch-profile-dir profiles --torch-profile-iters 2
 """
 
 import argparse
@@ -103,10 +89,6 @@ def parse_args():
     parser.add_argument("--breakdown-iters", type=int, default=5,
                         help="Eager diagnostic samples per shape; 0 skips breakdown")
     parser.add_argument("--output", type=Path, help="Write all timing results as rank-0 JSON")
-    parser.add_argument("--torch-profile-dir", type=Path,
-                        help="Export per-rank CPU and CUDA traces from an extra benchmark replay pass")
-    parser.add_argument("--torch-profile-iters", type=int, default=3,
-                        help="Iterations per trace when --torch-profile-dir is set (default: 3)")
     parser.add_argument("--ncu", action="store_true",
                         help="Warm up, then capture one eager iteration on all four ranks")
     args = parser.parse_args()
@@ -114,10 +96,6 @@ def parse_args():
         parser.error("warmup, rounds and iters must be positive; breakdown-iters must be nonnegative")
     if args.sms is not None and (args.sms < 2 or args.sms % 2):
         parser.error("--sms must be a positive even MegaMoE SM budget")
-    if args.torch_profile_iters < 1:
-        parser.error("--torch-profile-iters must be positive")
-    if args.ncu and args.torch_profile_dir is not None:
-        parser.error("--torch-profile-dir and --ncu must be used in separate runs")
     if args.ncu and (args.shape == "both" or args.backend == "both"):
         parser.error("--ncu requires one --shape and one --backend")
     if args.mega_layout == "register" and (args.shape != "decode" or args.backend == "humming"):
@@ -338,32 +316,7 @@ def warmup(run, count):
     torch.cuda.synchronize()
 
 
-def capture_torch_profile(replay, args, *, shape, backend, rank):
-    variant = f"mega-{args.mega_layout}" if backend == "mega" else backend
-    rows = SHAPES[shape]
-    trace = args.torch_profile_dir / f"{shape}-{variant}-{args.timing}-rank{rank}.json"
-    trace.parent.mkdir(parents=True, exist_ok=True)
-    dist.barrier()
-    torch.cuda.synchronize()
-    with torch.profiler.profile(
-        activities=[torch.profiler.ProfilerActivity.CPU, torch.profiler.ProfilerActivity.CUDA],
-        record_shapes=True,
-        with_stack=True,
-    ) as prof:
-        prof.add_metadata_json("benchmark", json.dumps({
-            "shape": shape, "backend": backend, "variant": variant, "timing": args.timing,
-            "rank": rank, "world_size": WORLD, "iterations": args.torch_profile_iters,
-            "input_shape": [rows, HIDDEN], "routing_shape": [rows, TOPK],
-            "tokens_total": rows * WORLD, "intermediate": INTERMEDIATE, "experts": EXPERTS,
-        }))
-        for iteration in range(args.torch_profile_iters):
-            with torch.profiler.record_function(f"benchmark/{shape}/{variant}/{args.timing}/{iteration}"):
-                replay()
-        torch.cuda.synchronize()
-    prof.export_chrome_trace(str(trace))
-
-
-def benchmark(run, args, *, shape, backend, rank):
+def benchmark(run, args):
     warmup(run, args.warmup)
     replay = run
     if args.timing == "graph":
@@ -386,8 +339,6 @@ def benchmark(run, args, *, shape, backend, rank):
         end.record()
         end.synchronize()
         samples.append(start.elapsed_time(end) * 1000 / args.iters)
-    if args.torch_profile_dir is not None:
-        capture_torch_profile(replay, args, shape=shape, backend=backend, rank=rank)
     if args.timing == "graph":
         graph.reset()
     return samples
@@ -463,10 +414,10 @@ def run_shape(args, shape, rank, mega_weights, humming_runner, sms):
 
     totals = {}
     for name, run in runs.items():
-        totals[name] = benchmark(run, args, shape=shape, backend=name, rank=rank)
+        totals[name] = benchmark(run, args)
         if name == "humming":
             totals["humming_tp_replicated"] = benchmark(
-                lambda: run(gather=False), args, shape=shape, backend="humming_tp_replicated", rank=rank,
+                lambda: run(gather=False), args,
             )
     result["totals"] = summarize(totals)
     if "mega" in totals and "humming" in totals:
@@ -507,9 +458,6 @@ def main():
     torch.cuda.set_device(rank)
     if torch.cuda.get_device_capability()[0] != 9:
         raise SystemExit("This benchmark requires SM90 (Hopper)")
-    if (args.torch_profile_dir is not None
-            and torch.profiler.ProfilerActivity.CUDA not in torch.profiler.supported_activities()):
-        raise SystemExit("--torch-profile-dir requires PyTorch Profiler with CUDA activity support (CUPTI)")
     dist.init_process_group("nccl", device_id=torch.device("cuda", rank))
     try:
         mega_weights = humming_runner = sms = None
