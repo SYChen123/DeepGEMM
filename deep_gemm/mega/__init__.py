@@ -13,6 +13,13 @@ except Exception as exception:
     print(f'Failed to load mega kernels, please check your PyTorch version: {exception}')
 
 from .. import _C
+from .sm90_fused import (
+    SM90FusedSymmBuffer,
+    fp8_fused_mega_moe_sm90,
+    fp8_mxfp4_mega_moe,
+    get_symm_buffer_for_sm90_fused_mega_moe,
+    transform_weights_for_fp8_mxfp4_fused_mega_moe_sm90,
+)
 
 
 class SymmBuffer:
