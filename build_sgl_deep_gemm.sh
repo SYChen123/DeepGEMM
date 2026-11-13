@@ -6,7 +6,7 @@
 # (so existing call sites like `import deep_gemm` in sglang keep working).
 #
 # Build flow:
-#   1. Initialises submodules (cutlass, deep_jit) — same prerequisite as `bash build.sh`.
+#   1. Checks the vendored CUTLASS and DeepJIT headers.
 #   2. Stages the package layout under build/deep_gemm/ with the Python
 #      sub-modules pulled from the source deep_gemm/ tree (utils, testing,
 #      legacy, mega).
@@ -29,8 +29,16 @@ if [[ ! -f "setup.py" || ! -d "sgl_deep_gemm" || ! -d "deep_gemm" || ! -d "csrc"
     exit 1
 fi
 
-echo "--- Initialising submodules ---"
-git submodule update --init --recursive
+echo "--- Checking vendored dependency headers ---"
+for dependency_header in \
+    third-party/cutlass/include/cutlass/cutlass.h \
+    third-party/cutlass/include/cute/tensor.hpp \
+    third-party/deep_jit/include/deep_jit/runtime/runtime.hpp; do
+    if [[ ! -f "${ROOT_DIR}/${dependency_header}" ]]; then
+        echo "Error: Missing vendored header ${dependency_header}. See third-party/README.md." >&2
+        exit 1
+    fi
+done
 
 echo "--- Linking CUTLASS headers into deep_gemm/include ---"
 ln -sfn "${ROOT_DIR}/third-party/cutlass/include/cutlass" "${ROOT_DIR}/deep_gemm/include/cutlass"

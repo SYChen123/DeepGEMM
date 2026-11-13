@@ -30,7 +30,7 @@ Despite its lightweight design, DeepGEMM's performance matches or exceeds expert
 - Compilers and standard libraries with C++20 `<format>` support
 - CUDA Toolkit 12.9 or higher
 - PyTorch 2.3 or higher
-- CUTLASS 4.0 or higher (could be cloned by Git submodule)
+- CUTLASS and DeepJIT ([pinned sources included under `third-party/`](third-party/README.md))
 
 ### Build the SGLang wheel
 
@@ -49,8 +49,8 @@ describe the upstream DeepGEMM package.
 ### Development
 
 ```bash
-# Submodule must be cloned
-git clone --recursive git@github.com:deepseek-ai/DeepGEMM.git
+# The dependency sources are included in this branch.
+git clone --branch codex/0.2.2-sm90-megamoe-pr473 https://code.alipay.com/csy512356/DeepGEMM.git
 cd DeepGEMM
 
 # Link some essential includes and build the C++ extension

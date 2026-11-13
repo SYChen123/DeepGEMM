@@ -1,0 +1,30 @@
+{
+  "format_version": 1,
+  "snapshot_date": "2026-11-02",
+  "storage": "ordinary Git files; no submodule checkout required",
+  "dependencies": [
+    {
+      "name": "cutlass",
+      "path": "third-party/cutlass",
+      "upstream": "https://github.com/NVIDIA/cutlass.git",
+      "commit": "f3fde58372d33e9a5650ba7b80fc48b3b49d40c8",
+      "tree": "6a2fa238c1fee9ecd3d37881f5841566a4a754ab",
+      "files": 6617,
+      "bytes": 140192852,
+      "license_files": [
+        "LICENSE.txt",
+        "python/LICENSE.txt"
+      ]
+    },
+    {
+      "name": "deep_jit",
+      "path": "third-party/deep_jit",
+      "upstream": "https://github.com/deepseek-ai/DeepJIT.git",
+      "commit": "e5bdee2bc4ca519eba00cfc5f0c6e950e6a96a16",
+      "tree": "3b1d812247b6f3170a56608e8f848b47235d4af0",
+      "files": 102,
+      "bytes": 427136,
+      "license_files": []
+    }
+  ]
+}

@@ -7,7 +7,7 @@ sgl-deep-gemm is a pypi package built from SGLang's customized branch of DeepGem
 3. Fast iteration: add custom kernels and bump versions at no time.
 
 ## Usage
-Build requirements include CUDA 12.9 or newer, a C++20 compiler with `std::format` support (for example GCC 13), and the elfutils development headers (`apt-get install libdw-dev` on Debian/Ubuntu). Initialize the CUTLASS and DeepJIT submodules with `git submodule update --init --recursive`.
+Build requirements include CUDA 12.9 or newer, a C++20 compiler with `std::format` support (for example GCC 13), and the elfutils development headers (`apt-get install libdw-dev` on Debian/Ubuntu). The branch includes the pinned CUTLASS and DeepJIT sources under `third-party/`.
 
 To build it locally, run `bash build_sgl_deep_gemm.sh`, then pip install the wheel generated under `dist`.
 
