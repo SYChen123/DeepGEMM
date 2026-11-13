@@ -74,6 +74,7 @@ public:
         bool packed_register_layout;
         bool pipeline_rs_decode;
         bool profile_rs_stages;
+        bool rs_weight_lookahead;
         MegaMoESM90Config config;
 
         // Runtime arguments
@@ -130,6 +131,7 @@ static void __instantiate_kernel() {{
         {},
         {},
         {},
+        {},
         {}
     >);
 }};
@@ -157,7 +159,8 @@ static void __instantiate_kernel() {{
     args.use_sparse_dispatch_counts ? "true" : "false",
     args.packed_register_layout ? "true" : "false",
     args.pipeline_rs_decode ? "true" : "false",
-    args.profile_rs_stages ? "true" : "false");
+    args.profile_rs_stages ? "true" : "false",
+    args.rs_weight_lookahead ? "true" : "false");
     }
 
     static void launch(const std::shared_ptr<deep_jit::cuda::Kernel>& kernel, const Args& args) {
@@ -221,8 +224,10 @@ static void sm90_fp8_fp4_mega_moe(
 
     const bool pipeline_rs_decode = register_weights and not packed_register_layout and
         deep_jit::get_env<bool>("DG_SM90_FP4_RS_PIPELINE");
+    const bool rs_weight_lookahead = register_weights and not packed_register_layout and
+        deep_jit::get_env<bool>("DG_SM90_FP4_RS_LOOKAHEAD");
     const bool rs_early_b_decode = register_weights and
-        deep_jit::get_env<bool>("DG_SM90_FP4_RS_EARLY_B_DECODE");
+        (rs_weight_lookahead or deep_jit::get_env<bool>("DG_SM90_FP4_RS_EARLY_B_DECODE"));
     const bool split_b_ready = use_early_b_decode or rs_early_b_decode;
     // RS consumes its own decoded registers. Reuse the unused decode-done
     // barrier storage for weight readiness when splitting A and B.
@@ -338,7 +343,8 @@ static void sm90_fp8_fp4_mega_moe(
                        timings.size(2) == kSM90MegaMoEProfileFields);
         profile_rs_stages = timings.size(1) == kSM90MegaMoERSProfilePhases;
         DG_HOST_ASSERT(timings.size(1) == kSM90MegaMoEProfilePhases or
-                       (profile_rs_stages and register_weights and not packed_register_layout));
+                       (profile_rs_stages and register_weights and not packed_register_layout and
+                        not rs_weight_lookahead));
         phase_timings_ptr = timings.data_ptr<int64_t>();
     }
     const SM90FP8FP4MegaMoERuntime::Args args = {
@@ -360,6 +366,7 @@ static void sm90_fp8_fp4_mega_moe(
         .packed_register_layout = packed_register_layout,
         .pipeline_rs_decode = pipeline_rs_decode and not rs_early_b_decode,
         .profile_rs_stages = profile_rs_stages,
+        .rs_weight_lookahead = rs_weight_lookahead,
         .config = config,
         .y = y.data_ptr(),
         .cumulative_local_expert_recv_stats = cumulative_local_expert_recv_stats_ptr,

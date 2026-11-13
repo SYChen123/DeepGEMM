@@ -35,6 +35,7 @@ def make_run(weights, inputs, buffer, variant, phase_timings=None):
 
     os.environ["DG_SM90_FP4_RS_PIPELINE"] = "1" if variant == "pipeline" else "0"
     os.environ["DG_SM90_FP4_RS_EARLY_B_DECODE"] = "1" if variant == "early-b" else "0"
+    os.environ["DG_SM90_FP4_RS_LOOKAHEAD"] = "1" if variant == "lookahead" else "0"
     x, ids, probs = inputs
     output = torch.empty_like(x)
 
@@ -149,7 +150,7 @@ def main():
     parser.add_argument("--rows", type=int, nargs="+", default=[8, 32, 64, 128])
     parser.add_argument("--rounds", type=int, default=11)
     parser.add_argument("--iters", type=int, default=40)
-    parser.add_argument("--compare", choices=("pipeline", "early-b"), default="pipeline",
+    parser.add_argument("--compare", choices=("pipeline", "early-b", "lookahead"), default="pipeline",
                         help="Compare the selected RS variant against the combined-barrier baseline")
     parser.add_argument("--profile-iters", type=int, default=0,
                         help="Collect detailed RS stage diagnostics after the Graph A/B")
@@ -158,6 +159,8 @@ def main():
         parser.error("rows, rounds, and iters must be positive")
     if args.profile_iters < 0:
         parser.error("profile-iters must be nonnegative")
+    if args.compare == "lookahead" and args.profile_iters:
+        parser.error("lookahead requires --profile-iters 0 because it prepares weights across GEMM boundaries")
     torch.cuda.set_device(int(os.environ["LOCAL_RANK"]))
     if max(args.rows) > deep_gemm.get_sm90_fp4_row_major_rs_max_tokens():
         parser.error("rows exceeds the SM90 RS limit")

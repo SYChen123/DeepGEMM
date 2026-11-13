@@ -64,8 +64,10 @@ struct FP4SM90APIDefaults {
     bool swap_ab;
 };
 
-// Maximum number of input rows per rank for the V4.1 Flash EP4 RS kernel.
-static constexpr int kSM90FP4RegisterMaxTokens = 128;
+// Per-rank input rows for V4.1 Flash EP4. Paired-row RS stays ahead of SS
+// through the 256-row bucket on H20-3e with both uniform and hot-expert routes.
+static constexpr int kSM90FP4RegisterMaxTokens = 256;
+static constexpr int kSM90FP4RowMajorRSMaxTokens = 128;
 
 static FP4SM90APIDefaults get_fp4_sm90_api_defaults(
     const int& num_experts_per_rank, const int& num_tokens, const int& num_topk,
@@ -388,7 +390,9 @@ static void fp8_fp4_mega_moe_sm90(
         DG_HOST_ASSERT(not use_situ);
     }
     if (register_weights) {
-        DG_HOST_ASSERT(num_tokens > 0 and num_tokens <= kSM90FP4RegisterMaxTokens);
+        const int max_rs_tokens = packed_register_layout
+            ? kSM90FP4RegisterMaxTokens : kSM90FP4RowMajorRSMaxTokens;
+        DG_HOST_ASSERT(num_tokens > 0 and num_tokens <= max_rs_tokens);
         DG_HOST_ASSERT(fp4_defaults.swap_ab and not fp4_defaults.early_b_decode);
     }
     sm90_fp8_fp4_mega_moe(y,

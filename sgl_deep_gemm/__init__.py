@@ -554,7 +554,7 @@ def transform_weights_for_mega_moe_sm90_fp4(
 
 
 get_sm90_fp4_register_max_tokens = _C.get_sm90_fp4_register_max_tokens
-get_sm90_fp4_row_major_rs_max_tokens = get_sm90_fp4_register_max_tokens
+get_sm90_fp4_row_major_rs_max_tokens = _C.get_sm90_fp4_row_major_rs_max_tokens
 
 
 def pack_sm90_fp4_register_weights(weight: torch.Tensor) -> torch.Tensor:
@@ -628,6 +628,8 @@ def fp8_fp4_mega_moe(y: torch.Tensor,
     EP rank to run the SS kernel on those same paired-row tensors.
     DG_SM90_FP4_RS_EARLY_B_DECODE=1 lets RS decode weights before A/SFA arrives
     and takes precedence over DG_SM90_FP4_RS_PIPELINE.
+    DG_SM90_FP4_RS_LOOKAHEAD=1 also predecodes one ready slot while WGMMA is in
+    flight for standard-layout RS. Use the nine-phase buffer with this mode.
     """
     if activation == 'situ' and activation_clamp is not None:
         raise ValueError('activation_clamp is not supported with SiTU')
