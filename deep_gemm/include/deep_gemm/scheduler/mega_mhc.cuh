@@ -37,7 +37,11 @@ struct SplitBarrier {
     static CUTLASS_DEVICE void arrive(uint64_t* gmem_split_barriers, const uint32_t& m_block_idx) {
         const auto state_ptr = get_ptr(gmem_split_barriers, m_block_idx);
         // NOTES: SM100 can retire the release reduction asynchronously while this CTA starts its next task.
+#if defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 1000
         ptx::red_async_inc_rel(state_ptr);
+#else
+        ptx::red_add_rel(state_ptr, uint64_t(1));
+#endif
     }
 
     template <uint32_t kNumSplits>

@@ -4,6 +4,7 @@
 #include <cutlass/arch/reg_reconfig.h>
 
 #include <deep_gemm/common/math.cuh>
+#include <deep_gemm/common/fp32x2.cuh>
 #include <deep_gemm/layout/mega_mhc.cuh>
 #include <deep_gemm/ptx/ld_st.cuh>
 #include <deep_gemm/scheduler/mega_mhc.cuh>
@@ -110,7 +111,7 @@ constexpr uint32_t kNumLanesPerSFWord = kHiddenPerSFWord / kHiddenPerNormLane;
 
 // Shared normalization and FP8 output helpers.
 CUTLASS_DEVICE nv_bfloat162 normalize_bf16_pair(const nv_bfloat162& input, const nv_bfloat162& weight, const float& scale) {
-    return __float22bfloat162_rn(__fmul2_rn(__fmul2_rn(__bfloat1622float2(input), {scale, scale}), __bfloat1622float2(weight)));
+    return __float22bfloat162_rn(math::mul_fp32x2_rn(math::mul_fp32x2_rn(__bfloat1622float2(input), {scale, scale}), __bfloat1622float2(weight)));
 }
 
 template <uint32_t SF_BLOCK_M>
@@ -137,8 +138,8 @@ CUTLASS_DEVICE uint32_t store_fp8_and_pack_sf(const NormArgs& norm_args, const u
 
 // A Normal task fuses Mix, Pre, and RMSNorm for one token.
 template <uint32_t kHidden, uint32_t kNumSMs, bool kStoreBF16, bool kStoreFP8,
-          uint32_t SF_BLOCK_M, uint32_t kNumSplits>
-CUTLASS_DEVICE void run_normal_worker(SharedStorage& smem, const Workspace<kNumSplits>& workspace,
+          uint32_t SF_BLOCK_M, uint32_t kNumSplits, typename Storage>
+CUTLASS_DEVICE void run_normal_worker(Storage& smem, const Workspace<kNumSplits>& workspace,
                                       const uint32_t& wg_idx_in_cta,
                                       const uint32_t& warp_idx_in_wg, const uint32_t& lane_idx,
                                       uint64_t* gmem_split_barriers,
@@ -200,13 +201,13 @@ CUTLASS_DEVICE void run_normal_worker(SharedStorage& smem, const Workspace<kNumS
                 const auto pairs = reinterpret_cast<const nv_bfloat162*>(&input);
                 #pragma unroll
                 for (uint32_t pair_idx = 0; pair_idx < kNumBF16PairsPerLane; ++ pair_idx)
-                    values[pair_idx] = __ffma2_rn(__bfloat1622float2(pairs[pair_idx]), {coeff, coeff}, values[pair_idx]);
+                    values[pair_idx] = math::fma_fp32x2_rn(__bfloat1622float2(pairs[pair_idx]), {coeff, coeff}, values[pair_idx]);
             }
             #pragma unroll
             for (uint32_t pair_idx = 0; pair_idx < kNumBF16PairsPerLane; ++ pair_idx) {
                 output[pair_idx] = __float22bfloat162_rn(values[pair_idx]);
                 values[pair_idx] = __bfloat1622float2(output[pair_idx]);
-                sqr_sum = __ffma2_rn(values[pair_idx], values[pair_idx], sqr_sum);
+                sqr_sum = math::fma_fp32x2_rn(values[pair_idx], values[pair_idx], sqr_sum);
             }
         }
 
@@ -390,8 +391,8 @@ CUTLASS_DEVICE void run_shifted_norm_task(const Workspace<kNumSplits>& workspace
 }
 
 template <uint32_t kHidden, uint32_t kNumSMs, uint32_t kNumRegisters, bool kStoreBF16, bool kStoreFP8,
-          uint32_t SF_BLOCK_M, uint32_t kNumSplits>
-CUTLASS_DEVICE void run_shifted_norm_worker(SharedStorage& smem, const Workspace<kNumSplits>& workspace,
+          uint32_t SF_BLOCK_M, uint32_t kNumSplits, typename Storage>
+CUTLASS_DEVICE void run_shifted_norm_worker(Storage& smem, const Workspace<kNumSplits>& workspace,
                                             uint64_t* gmem_split_barriers,
                                             const NormArgs& norm_args,
                                             const uint32_t& lane_idx) {

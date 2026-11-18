@@ -6,6 +6,7 @@
 #include "../utils/compatibility.hpp"
 
 #include "../jit_kernels/impls/sm100_mega_mhc.hpp"
+#include "../jit_kernels/impls/sm90_mega_mhc.hpp"
 #include "../utils/layout.hpp"
 
 namespace deep_gemm::mega_mhc {
@@ -220,7 +221,8 @@ static void mega_mhc(const torch::Tensor& x,
         DG_HOST_ASSERT(num_required_bytes <= y_shared_sf->storage().nbytes());
     }
 
-    DG_HOST_ASSERT(jit->device.get_arch_major() == 10);
+    const auto arch_major = jit->device.get_arch_major();
+    DG_HOST_ASSERT(arch_major == 9 or arch_major == 10);
     const auto num_sms = runtime->get_num_sms();
     const auto num_m_blocks = mhc_layout::Workspace<>::get_num_m_blocks(static_cast<uint32_t>(num_tokens));
     const auto num_splits = get_num_splits(num_m_blocks, static_cast<uint32_t>(hidden), static_cast<uint32_t>(num_sms));
@@ -229,7 +231,12 @@ static void mega_mhc(const torch::Tensor& x,
     const bool needs_bf16_scratch = not y_bf16.has_value() and is_shifted;
     const auto num_bf16_scratch_bytes = needs_bf16_scratch ? static_cast<int64_t>(num_tokens) * hidden * x.element_size() : 0;
     // Reject an unwarmed stream before allocating temporary capture storage.
-    const auto& split_barriers = get_split_barriers(x.options());
+    // SM90 owns barriers per invocation, including graph nodes. Concurrent graphs
+    // captured on one stream must not share mutable synchronization state (#503).
+    const auto split_barriers = arch_major == 9
+        ? torch::empty({mhc_layout::kNumSplitBarriers, mhc_layout::kNumMaxMBlocks,
+                        mhc_layout::kSplitBarrierLineBytes}, x.options().dtype(torch::kByte))
+        : get_split_barriers(x.options());
     const auto scratch = torch::empty({static_cast<int64_t>(num_mhc_scratch_bytes) + num_bf16_scratch_bytes},
                                       x.options().dtype(torch::kByte));
     // CUDA graph replays reuse grid IDs. Clear this launch's active barrier lines
@@ -247,7 +254,8 @@ static void mega_mhc(const torch::Tensor& x,
     // GEMM and routed SF differ only in strides and share one primary writer.
     const auto& y_primary_sf = y_routed_sf.has_value() ? y_routed_sf : y_gemm_sf;
 
-    sm100_mega_mhc(
+    const auto launch = arch_major == 9 ? sm90_mega_mhc : sm100_mega_mhc;
+    launch(
         x, residual, post_mix, comb_res_mix, shifted_prev_mix,
         fn, mix_scales, mix_bases,
         hc_norm_eps, hc_pre_eps, hc_post_scale, sinkhorn_eps, num_sinkhorn_iters,

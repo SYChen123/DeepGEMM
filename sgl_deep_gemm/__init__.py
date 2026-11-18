@@ -377,6 +377,9 @@ def mega_mhc(x, residual, shifted_prev_mix, post_mix, comb_res_mix, fn, mix_scal
         y_bf16, y_fp8, y_gemm_sf, y_routed_sf, y_shared_sf, shared_sf_block_m,
         shared_sf_storage)
 
+# Capability check for callers selecting an architecture-specific boundary.
+mega_mhc.supported_architectures = (9, 10)
+
 # Mega kernels
 from . import mega
 from .mega import (
