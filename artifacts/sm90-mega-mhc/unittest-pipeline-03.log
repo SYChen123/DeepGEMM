@@ -1,0 +1,18 @@
+unittest.case.FunctionTestCase (test_modes_and_tails) ... CASE False 1 4096 bf16
+CASE False 32 5120 bf16
+CASE False 65 5120 col
+CASE False 129 7168 extra
+CASE True 1 4096 bf16
+CASE True 32 5120 bf16
+CASE True 65 5120 col
+CASE True 129 7168 extra
+ok
+unittest.case.FunctionTestCase (test_fp8_only_shifted) ... ok
+unittest.case.FunctionTestCase (test_tf32_shared_a_swizzle) ... ok
+unittest.case.FunctionTestCase (test_same_capture_stream_concurrent_replay) ... ok
+unittest.case.FunctionTestCase (test_deterministic_repeated_launch) ... ok
+
+----------------------------------------------------------------------
+Ran 5 tests in 16.090s
+
+OK

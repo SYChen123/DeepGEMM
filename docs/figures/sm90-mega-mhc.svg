@@ -1,0 +1,80 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="800" viewBox="0 0 1400 800" role="img">
+<defs><marker id="arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9" fill="#44546b"/></marker></defs>
+<style>text{font-family:Arial,sans-serif;fill:#18283e}.title{font-size:30px;font-weight:700}.sub{font-size:18px;fill:#53657b}.label{font-size:19px;font-weight:700}.detail{font-size:16px}.edge{fill:none;stroke:#44546b;stroke-width:2.3;marker-end:url(#arrow)}.stat{stroke-dasharray:7 5}</style>
+<rect width="1400" height="800" fill="#f7f9fc"/>
+<text class="title" x="50" y="50">H200 / SM90 Mega mHC · shifted</text>
+<text class="sub" x="50" y="82">Persistent grid = selected SM count · 768 threads / CTA · 220160 B shared memory</text>
+<rect x="50" y="155" width="220" height="85" rx="12" fill="#e4efff" stroke="#c1cddc"/>
+<text class="label" x="66" y="184">IO TMA · WG0/w0</text>
+<text class="detail" x="66" y="209">R, X: 64 × 64 × routes</text>
+<text class="detail" x="66" y="234">3 IO stages</text>
+<rect x="50" y="290" width="220" height="85" rx="12" fill="#e4efff" stroke="#c1cddc"/>
+<text class="label" x="66" y="319">Coeff · WG0/w3</text>
+<text class="detail" x="66" y="344">post / comb / prev_pre</text>
+<text class="detail" x="66" y="369">2 stages; held in registers</text>
+<rect x="50" y="480" width="220" height="85" rx="12" fill="#e4efff" stroke="#c1cddc"/>
+<text class="label" x="66" y="509">Fn TMA · WG0/w1</text>
+<text class="detail" x="66" y="534">FP32 → TF32 in TMA</text>
+<text class="detail" x="66" y="559">route-major 3D descriptor</text>
+<rect x="370" y="155" width="260" height="115" rx="12" fill="#fff0d1" stroke="#c1cddc"/>
+<text class="label" x="386" y="184">Post · WG1 + WG2</text>
+<text class="detail" x="386" y="209">FP32 mix → BF16 boundary</text>
+<text class="detail" x="386" y="234">even / odd K atoms</text>
+<text class="detail" x="386" y="259">R′ and X1 square sums</text>
+<rect x="730" y="155" width="220" height="85" rx="12" fill="#ece7ff" stroke="#c1cddc"/>
+<text class="label" x="746" y="184">Shared A · 4 stages</text>
+<text class="detail" x="746" y="209">32 B swizzle; K = 8</text>
+<text class="detail" x="746" y="234">full / empty ownership</text>
+<rect x="1050" y="155" width="300" height="115" rx="12" fill="#ece7ff" stroke="#c1cddc"/>
+<text class="label" x="1066" y="184">WGMMA · WG3</text>
+<text class="detail" x="1066" y="209">128 threads, m64n24k8</text>
+<text class="detail" x="1066" y="234">register accumulator</text>
+<text class="detail" x="1066" y="259">wait before A/Fn reuse</text>
+<rect x="370" y="350" width="260" height="85" rx="12" fill="#e4efff" stroke="#c1cddc"/>
+<text class="label" x="386" y="379">Store · WG0/w3</text>
+<text class="detail" x="386" y="404">TMA: R′ + shifted X1</text>
+<text class="detail" x="386" y="429">drain, then release IO</text>
+<rect x="730" y="350" width="220" height="85" rx="12" fill="#ece7ff" stroke="#c1cddc"/>
+<text class="label" x="746" y="379">Fn ring · 2 stages</text>
+<text class="detail" x="746" y="404">32-float TF32 atoms</text>
+<text class="detail" x="746" y="429">128 B swizzle</text>
+<rect x="1050" y="350" width="300" height="85" rx="12" fill="#edeff3" stroke="#c1cddc"/>
+<text class="label" x="1066" y="379">Partial epilogue · WG3</text>
+<text class="detail" x="1066" y="404">24 projection values / token</text>
+<text class="detail" x="1066" y="429">commit + release to Mix</text>
+<rect x="730" y="480" width="220" height="70" rx="12" fill="#edeff3" stroke="#c1cddc"/>
+<text class="label" x="746" y="509">Split workspace</text>
+<text class="detail" x="746" y="534">projection + 2 square sums</text>
+<rect x="370" y="600" width="260" height="100" rx="12" fill="#daf3e8" stroke="#c1cddc"/>
+<text class="label" x="386" y="629">Norm · WG5 + retirees</text>
+<text class="detail" x="386" y="654">wait Norm split barrier</text>
+<text class="detail" x="386" y="679">X1 prefetch → RMSNorm</text>
+<rect x="730" y="600" width="220" height="100" rx="12" fill="#daf3e8" stroke="#c1cddc"/>
+<text class="label" x="746" y="629">Normalized output</text>
+<text class="detail" x="746" y="654">BF16 and/or E4M3</text>
+<text class="detail" x="746" y="679">UE8M0 scale layouts</text>
+<rect x="1050" y="600" width="300" height="100" rx="12" fill="#ffe5ec" stroke="#c1cddc"/>
+<text class="label" x="1066" y="629">Mix · WG4</text>
+<text class="detail" x="1066" y="654">wait Mix split barrier</text>
+<text class="detail" x="1066" y="679">reduce / sigmoid / Sinkhorn</text>
+<text class="detail" x="1066" y="704">next pre / post / comb</text>
+<path class="edge " d="M270 196 H370"/>
+<path class="edge " d="M270 332 H315 V245 H370"/>
+<path class="edge " d="M630 196 H730"/>
+<path class="edge " d="M950 196 H1050"/>
+<path class="edge " d="M500 270 V350"/>
+<path class="edge " d="M270 523 H680 V393 H730"/>
+<path class="edge " d="M950 392 H1000 V230 H1050"/>
+<path class="edge " d="M1200 270 V350"/>
+<path class="edge " d="M1200 435 V515 H950"/>
+<path class="edge stat" d="M630 410 H655 V500 H730"/>
+<path class="edge stat" d="M840 550 V575 H1200 V600"/>
+<path class="edge stat" d="M730 515 H650 V570 H600 V600"/>
+<path class="edge " d="M500 435 V600"/>
+<path class="edge " d="M630 650 H730"/>
+<text class="detail" x="375" y="470">Norm arrival:</text>
+<text class="detail" x="375" y="495">stores + stats</text>
+<rect x="50" y="725" width="1300" height="62" rx="8" fill="#e9eef5"/>
+<text class="detail" x="68" y="750">Shifted: Mix and Norm are independent. Normal: new pre must be ready before combine + norm.</text>
+<text class="detail" x="68" y="774">Dashed arrows carry statistics. Shared/TMEM slots are reused only after the consuming engine completes.</text>
+</svg>

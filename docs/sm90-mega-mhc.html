@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="zh-CN">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SM90 Mega mHC · H200 设计与验证</title>
+<style>
+  body{margin:0;background:#f5f7fb;color:#17283e;font:17px/1.7 system-ui,sans-serif}
+  main{max-width:1400px;margin:auto;padding:40px 32px 70px}h1{font-size:38px;margin:0 0 8px}
+  h2{font-size:27px;margin:40px 0 12px}.muted{color:#52657c}.tag{background:#dfebff;padding:5px 12px;border-radius:20px;font-size:14px}
+  figure{margin:20px 0;background:white;border:1px solid #d8e0eb;border-radius:16px;overflow:hidden}
+  figure img{display:block;width:100%;height:auto}figcaption{padding:14px 22px;border-top:1px solid #e6ebf2}
+  .cards{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}.card{background:white;padding:22px;border-radius:14px;border:1px solid #d8e0eb}
+  .card b{display:block;color:#315aa8;font-size:21px}.card p{margin:8px 0 0}code{font-size:15px;background:#e9eef7;padding:2px 5px;border-radius:4px}
+  a{color:#2356ae}table{border-collapse:collapse;background:white;width:100%}th,td{padding:12px 18px;text-align:left;border-bottom:1px solid #dce3ed}
+  .note{background:#eaf1fb;border-left:4px solid #426eae;padding:16px 22px}
+  @media(max-width:800px){main{padding:24px 16px}.cards{grid-template-columns:1fr}h1{font-size:29px}figure{overflow:auto}figure img{min-width:950px}}
+</style>
+<main>
+  <span class="tag">2026-11-18 · 已归档 · V1 实测 / 候选未测</span>
+  <h1>SM90 Mega mHC：融合边界与算子流水</h1>
+  <p class="muted">从 SM100 的 persistent kernel 移植 Post、投影、Mix 与 RMSNorm；图中实线表示数据移动，虚线表示归约统计。完整代码分析与社区调查见 <a href="sm90-mega-mhc.md">设计报告</a>。</p>
+  <div class="cards">
+    <div class="card"><b>保留数值边界</b><p>Post 用 FP32 FMA，R′ 舍入为 BF16；collapse 后 X1 再舍入为 BF16，再计算 RMSNorm。</p></div>
+    <div class="card"><b>Shifted 两条分支</b><p>当前 Norm 使用 carried pre，因此不依赖下一组 Mix 系数；Mix 与 Norm 通过独立 split barrier 推进。</p></div>
+    <div class="card"><b>Hopper 执行模型</b><p>TCGEN05 / TMEM 改为 128-thread WGMMA、shared A ring 和寄存器 accumulator；IO 减为 3 stages。</p></div>
+  </div>
+  <h2>SM100 总体架构</h2>
+  <figure><img src="figures/sm100-mega-mhc.svg" alt="SM100 Mega mHC 的六个 warpgroup、TMA、TMEM、独立 Mix 与 Norm 流程"><figcaption>每 SM 一个 persistent CTA；IO、Fn、A、accumulator、coeff 各有独立 full/empty ring。Post 生产下一 atom 的同时，TCGEN05 消费上一 atom。</figcaption></figure>
+  <h2>SM90 / H200 实现</h2>
+  <figure><img src="figures/sm90-mega-mhc.svg" alt="H200 Mega mHC 使用 shared A ring 与完整 warpgroup WGMMA 替换 TMEM 和 TCGEN05"><figcaption>WG1/2 交错生产 A；WG3 同时拥有 WGMMA 和 partial epilogue。TMA store 完成后才释放 IO buffer，WGMMA 完成后才允许复用 shared A/Fn。</figcaption></figure>
+  <h2>性能关键路径</h2>
+  <p class="note">整个 boundary 完成时间取 <code>IO → Post → A → WGMMA → Mix</code> 与 <code>Post → X1 store → Norm</code> 两条分支中较长者。Mega mHC 本身没有跨 GPU collective；这里的通信指 HBM/L2、TMA、SMEM/TMEM 与寄存器之间的数据移动。</p>
+  <table><thead><tr><th>阶段</th><th>重叠机制</th><th>应检查的停顿</th></tr></thead><tbody>
+    <tr><td>IO / Fn</td><td>独立 TMA warp、多级 ring、系数预取</td><td>full_IO / full_Fn 等待与 store drain</td></tr>
+    <tr><td>Post / projection</td><td>两个 Post WG 与 tensor core worker 并行</td><td>A ring 空槽、指令体积、WGMMA 完成等待</td></tr>
+    <tr><td>Mix / Norm</td><td>独立 split barrier；退休 worker 加入 Norm</td><td>最后一个 split、Norm 分区与尾波</td></tr>
+    <tr><td>SGLang decode</td><td>baseline 的 stats side stream 可与 MoE 重叠</td><td>单算子收益是否转化为整层关键路径缩短</td></tr>
+  </tbody></table>
+  <h2>H200 测量</h2>
+  <p id="results">已测 V1：32 calls/graph、12 replay rounds，交替顺序计时。双 outstanding 候选已通过正确性，按要求停止性能测试并单独归档。</p><table><thead><tr><th>token/rank</th><th>SGLang baseline (µs)</th><th>SM90 Mega mHC (µs)</th><th>加速比</th></tr></thead><tbody><tr><td>4096</td><td>205.81</td><td>152.42</td><td>1.350×</td></tr><tr><td>32</td><td>17.59</td><td>16.99</td><td>1.035×</td></tr></tbody></table><figure><img src="figures/sm90-mega-mhc-latency.svg" alt="H200 4096 和 32 token 的 SGLang baseline 与 Mega mHC 延迟"><figcaption>真实 checkpoint 权重、随机激活，单卡 mHC boundary；decode baseline 含 stats side stream。原始 samples 与精度均归档。</figcaption></figure><figure><img src="figures/sm90-mega-mhc-timeline.svg" alt="CTA 0 的 globaltimer 实测算子内流水"><figcaption>独立 instrumented launch，CTA 0 每角色一个 warp。灰色包含未细分的计算和等待，时间不能替代无打点 latency。</figcaption></figure><p><a href="experimental/sm90-mega-mhc-double-outstanding.md">候选优化原理、证据与恢复计划</a> · <a href="../artifacts/sm90-mega-mhc/README.md">数据归档索引</a> · <a href="sglang-sm90-mega-mhc.patch">SGLang 接入补丁</a></p>
+  <h2>社区依据</h2>
+  <p><a href="https://github.com/deepseek-ai/DeepGEMM/pull/502">upstream #502：Post unroll</a> · <a href="https://github.com/sgl-project/DeepGEMM/pull/141">SGL #141：producer / in-CTA Norm</a> · <a href="https://github.com/deepseek-ai/DeepGEMM/pull/478">upstream #478：graph epoch</a> · <a href="https://github.com/sgl-project/DeepGEMM/pull/136">SGL #136：SF layout</a></p>
+</main>
+</html>

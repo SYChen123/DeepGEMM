@@ -1,0 +1,27 @@
+{
+  "date": "2026-11-18",
+  "implementation_commit": "3a7c6a10be42bf9babdb96a519d461b0db19c801",
+  "base_commit": "4f9479c8580ef648751f5b15b94ba2716d1e5e79",
+  "sglang_commit": "7c5b581a8d521e3a2d80910d3cc72fbfbfbe982c",
+  "workflow": "workflow_62960518",
+  "device": "NVIDIA H200",
+  "physical_gpu": 1,
+  "v1_kernel_sha256": "6982d0d8254161efe6477a752d1e74fcd903d63018fd87f14f10d9a056f314e3",
+  "candidate_kernel_sha256": "295124cef48ef521b93993e554550247401d7553afd9be57c8537d0d6c1d17b8",
+  "v1_status": "Default. Real-weight 4096/32-token accuracy, changed-input graph replay, timings and profile completed.",
+  "candidate_status": "Archived patch. Correctness suite passed; performance run stopped before GPU execution at user request.",
+  "candidate_patch": "docs/experimental/sm90-mega-mhc-double-outstanding.patch",
+  "files_sha256": {
+    "artifacts/sm90-mega-mhc/benchmark-v1.json": "38f9e9ae976741e8a20bf4043cc8fbcc07e980f113aa64f1df72972a90b13382",
+    "artifacts/sm90-mega-mhc/sm90-megamhc-32-cta0.json": "f7c415537d559af5aa0929a5f6f3878baf7cccc6a971e5ed7642f09642620db6",
+    "artifacts/sm90-mega-mhc/sm90-megamhc-4096-cta0.json": "05214cfa58790729633842bf777e57829b74d13083edc96fb7d93e0cad200634",
+    "artifacts/sm90-mega-mhc/sm90_mega_mhc.v1.cuh": "6982d0d8254161efe6477a752d1e74fcd903d63018fd87f14f10d9a056f314e3",
+    "artifacts/sm90-mega-mhc/unittest-pipeline-03.log": "cf887034f96fbc7c97f5496f45c2edf7b6786c0d1422bcd5ce0c23b47d0524c4",
+    "docs/figures/sm100-mega-mhc.svg": "4e43e6984279569f87d13f8b49d00875bc8a6ae703af02f0b4f5ef2556a6da25",
+    "docs/figures/sm90-mega-mhc-latency.png": "354eb5a3b0b18c85b44bd953bc7eab34f1dc2a89121934236166f6c5d0d68388",
+    "docs/figures/sm90-mega-mhc-latency.svg": "8e53edd57d4d5f2a00f581a6174dadc88f1b3992026d0e7b4a36fedca5394152",
+    "docs/figures/sm90-mega-mhc-timeline.png": "7fb2b2c222356e0f137acaa989fa82d5fa39eb2cfacde6f43db641548605ec90",
+    "docs/figures/sm90-mega-mhc-timeline.svg": "b4c65a97ab1a2e0f0fa78e2354e5f5ff4debe1a5878de047683974a9e8349528",
+    "docs/figures/sm90-mega-mhc.svg": "d9d0b81db354980abf9b65642eea9bd5ea921947623ec29857fe6f3f1d67ba30"
+  }
+}

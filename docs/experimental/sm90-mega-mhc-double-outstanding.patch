@@ -1,0 +1,51 @@
+diff --git a/deep_gemm/include/deep_gemm/impls/sm90_mega_mhc.cuh b/deep_gemm/include/deep_gemm/impls/sm90_mega_mhc.cuh
+--- a/deep_gemm/include/deep_gemm/impls/sm90_mega_mhc.cuh
++++ b/deep_gemm/include/deep_gemm/impls/sm90_mega_mhc.cuh
+@@ -409,9 +409,9 @@
+                 for (uint32_t k_block_idx = 0; k_block_idx < num_task_k_blocks; ++ k_block_idx) {
+                     // Wait TMA residual and X arrival
+                     CUTE_TIE_DECL(io_pipeline.advance(), io_stage_idx, io_phase);
+-                    trace(5, io_stage_idx);
++                    trace(5, 0x10000u | io_stage_idx);
+                     smem.full_io_barriers[io_stage_idx].wait(io_phase);
+-                    trace(6, io_stage_idx);
++                    trace(6, 0x10000u | io_stage_idx);
+
+                     #pragma unroll 2
+                     for (uint32_t umma_k_idx = kPostWorkerIdx; umma_k_idx < BLOCK_K / UMMA_K;
+@@ -556,6 +556,7 @@
+                 trace(5, 0x10000u | fn_stage_idx);
+                 smem.full_fn_barriers[fn_stage_idx].wait(fn_phase);
+                 trace(6, 0x10000u | fn_stage_idx);
++                uint32_t last_a_stage_idx = 0;
+                 #pragma unroll 1
+                 for (uint32_t atom = 0; atom < BLOCK_K / UMMA_K; ++atom) {
+                     CUTE_TIE_DECL(a_pipeline.advance(), a_stage_idx, a_phase);
+@@ -575,13 +576,23 @@
+                     }
+                     ptx::warpgroup_commit_batch();
+                     trace(9, atom);
+-                    // Both shared operands stay live until all four warps drain WGMMA.
+-                    ptx::warpgroup_wait<0>();
++                    // Keep the current atom outstanding while retiring the previous
++                    // atom. Four A slots allow both Post WGs to keep producing.
++                    ptx::warpgroup_wait<1>();
+                     trace(10, atom);
+                     #pragma unroll
+                     for (auto& v: accum) ptx::warpgroup_fence_operand(v);
+-                    smem.empty_a_barriers[a_stage_idx].arrive();
+-                }
++                    if (atom > 0)
++                        smem.empty_a_barriers[last_a_stage_idx].arrive();
++                    last_a_stage_idx = a_stage_idx;
++                }
++                // The final atom still owns both A and this Fn tile.
++                trace(9, 0x10000u);
++                ptx::warpgroup_wait<0>();
++                trace(10, 0x10000u);
++                #pragma unroll
++                for (auto& v: accum) ptx::warpgroup_fence_operand(v);
++                smem.empty_a_barriers[last_a_stage_idx].arrive();
+                 smem.empty_fn_barriers[fn_stage_idx].arrive();
+             }
+             auto partial = workspace.get_gemm_partial_ptr(task_idx);

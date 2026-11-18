@@ -1,0 +1,126 @@
+diff --git a/python/sglang/srt/environ.py b/python/sglang/srt/environ.py
+--- a/python/sglang/srt/environ.py
++++ b/python/sglang/srt/environ.py
+@@ -1607,6 +1607,8 @@
+     SGLANG_ENABLE_DSV41_ENGRAM_HOST_TABLE = EnvBool(False)
+     SGLANG_OPT_ENGRAM_EXTEND_HASH = EnvBool(False)
+     SGLANG_OPT_DSV41_MEGA_MHC_PREFILL = EnvBool(False)
++    SGLANG_OPT_DSV41_MEGA_MHC_SM90_PREFILL = EnvBool(False)
++    SGLANG_OPT_DSV41_MEGA_MHC_SM90_DECODE = EnvBool(False)
+     # Replicated decode/verify/draft rows do not require CP-size alignment.
+     SGLANG_CP_DISABLE_DECODE_UNPADDING = EnvBool(False)
+     SGLANG_OPT_DSV41_C2_EPILOGUE = EnvBool(False)
+diff --git a/python/sglang/srt/models/deepseek_v4_mhc.py b/python/sglang/srt/models/deepseek_v4_mhc.py
+--- a/python/sglang/srt/models/deepseek_v4_mhc.py
++++ b/python/sglang/srt/models/deepseek_v4_mhc.py
+@@ -578,11 +578,30 @@
+     return coefficients
+
+
+-def _can_use_mega_mhc(cfg: HcConfig) -> bool:
+-    return (
+-        envs.SGLANG_OPT_DSV41_MEGA_MHC_PREFILL.get()
+-        and get_platform().is_sm100
+-        and not cfg.cp_prefill
++def _can_use_mega_mhc(cfg: HcConfig, is_decode: Optional[bool]) -> bool:
++    if cfg.cp_prefill:
++        return False
++    if get_platform().is_sm100:
++        return envs.SGLANG_OPT_DSV41_MEGA_MHC_PREFILL.get()
++    if not (
++        get_platform().is_sm90
++        and cfg.pre_from_prev
++        and cfg.hidden == 5120
++        and cfg.mult == 4
++        and is_decode is not None
++    ):
++        return False
++    enabled = (
++        envs.SGLANG_OPT_DSV41_MEGA_MHC_SM90_DECODE.get()
++        if is_decode
++        else envs.SGLANG_OPT_DSV41_MEGA_MHC_SM90_PREFILL.get()
++    )
++    if not enabled:
++        return False
++    import deep_gemm
++
++    return 9 in getattr(
++        getattr(deep_gemm, "mega_mhc", None), "supported_architectures", ()
+     )
+
+
+@@ -592,6 +611,7 @@
+     residual: torch.Tensor,
+     coefficients: HcTriplet,
+     next: Optional[HcNextBoundary],
++    is_decode: Optional[bool] = None,
+ ) -> HcState:
+     """Step 4 without a collective: the wide-tile kernel folds the next combine +
+     norm in where it serves this seam, otherwise the pure post runs and the next
+@@ -602,7 +622,7 @@
+         next is not None
+         and next.norm_fusable
+         and next.hc is not None
+-        and _can_use_mega_mhc(cfg)
++        and _can_use_mega_mhc(cfg, is_decode)
+         and y.shape[0] > 0
+     ):
+         next_hc = next.hc
+@@ -659,6 +679,7 @@
+     next: Optional[HcNextBoundary],
+     world_size: int,
+     precomputed: Optional[HcTriplet] = None,
++    is_decode: Optional[bool] = None,
+ ) -> HcState:
+     """The attention post. An `AttnOutput` rides the collective kernel (which also
+     folds ``next``'s norm); the attention may decline the handover even when asked,
+@@ -682,7 +703,7 @@
+         )
+         return HcState(updated, pre, HcNormed(normalized))
+     coefficients = _compute_triplet(hc, residual, stats_stream, precomputed)
+-    return _post_fusion(hc, out, residual, coefficients, next)
++    return _post_fusion(hc, out, residual, coefficients, next, is_decode)
+
+
+ def run_moe_post(
+@@ -694,6 +715,7 @@
+     next: Optional[HcNextBoundary],
+     world_size: int,
+     precomputed: Optional[HcTriplet] = None,
++    is_decode: Optional[bool] = None,
+ ) -> HcState:
+     """The MoE post. A deferred finalize the push plane can carry rides the
+     collective kernel (finalize + shared add + all-reduce, quantizing ``next``'s
+@@ -765,4 +787,4 @@
+         ):
+             out += pieces.shared
+     coefficients = _compute_triplet(hc, residual, stats_stream, precomputed)
+-    return _post_fusion(hc, out, residual, coefficients, next)
++    return _post_fusion(hc, out, residual, coefficients, next, is_decode)
+diff --git a/python/sglang/srt/models/deepseek_v4.py b/python/sglang/srt/models/deepseek_v4.py
+--- a/python/sglang/srt/models/deepseek_v4.py
++++ b/python/sglang/srt/models/deepseek_v4.py
+@@ -3477,6 +3477,11 @@
+                 next=self.local_boundary,
+                 world_size=world_size,
+                 precomputed=precomputed,
++                is_decode=(
++                    True
++                    if forward_batch.forward_mode.is_decode()
++                    else False if forward_batch.forward_mode.is_extend() else None
++                ),
+             )
+
+         def run_ffn_hc(state: mhc.HcState) -> mhc.HcState:
+@@ -3506,6 +3511,11 @@
+                 next=self.next_boundary,
+                 world_size=self.mlp.tp_size,
+                 precomputed=precomputed,
++                is_decode=(
++                    True
++                    if forward_batch.forward_mode.is_decode()
++                    else False if forward_batch.forward_mode.is_extend() else None
++                ),
+             )
+
+         return run_ffn_hc(run_attn_hc(state))

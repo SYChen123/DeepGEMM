@@ -18,7 +18,10 @@ import numpy as np
 
 def save(figure, output, name):
     for extension in ("svg", "png"):
-        figure.savefig(output / f"{name}.{extension}", dpi=180, bbox_inches="tight", facecolor="white")
+        target = output / f"{name}.{extension}"
+        figure.savefig(target, dpi=180, bbox_inches="tight", facecolor="white")
+        if extension == "svg":
+            target.write_text("\n".join(line.rstrip() for line in target.read_text().splitlines()) + "\n")
     plt.close(figure)
 
 
