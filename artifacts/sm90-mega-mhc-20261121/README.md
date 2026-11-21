@@ -5,13 +5,16 @@
 | 文件 | 内容 |
 |---|---|
 | `heuristic4-comparison.json` | 最终真实 SGLang baseline，五种 shape 的 ABBA median 与各进程 median |
+| `heuristic4-timing-*.json` | 最终四个进程的全部原始 event samples、精度与权重 metadata |
 | `optimization-summary.json` | 每个原型各自的配对 V1、热 fixture 原始 samples、最终正式比较、依赖和 extension 哈希 |
 | `memory-profile-summary.json` | V1 / 最终版的单独 HBM counter capture，保留单位 |
 | `final-regression-heuristic4.log` | 六组最终回归，含 1024/4096-token、变输入、跨 stream 并发 graph replay |
 | `heuristic4-controller.log` | 正式回归、多波和 ABBA 的完成状态 |
+| `multiwave-heuristic4.log` | 4-SM 的 normal/shifted、T129/T4096 多波回归 |
 | `double-comparison.json` | 双 outstanding 的正式复测，ABBA×2，每 arm 四个进程 |
 | `double-profile-summary.json` | 双 outstanding 的带打点等待分类；interval 和不等于 latency |
 | `source-hashes.json` | 实际 host/device/benchmark/test 和 SGLang baseline 的源码哈希 |
+| `profile-sync-verification.json` | 三批本地完整归档的整包与逐文件校验记录 |
 
 最终 API SHA256：`c629d46ca11aed3a1ba81d93c2eace2ef4fadbcf0bffa7051a12b76cae53d0e5`；测试 extension SHA256：`df048dbf0f6044f426d2c3782ca18e50fd7af3367f41d4ae4c5cca86895994a5`。V1 device kernel SHA256：`6982d0d8254161efe6477a752d1e74fcd903d63018fd87f14f10d9a056f314e3`。源码与本地待提交文件逐字节一致。
 
@@ -34,6 +37,6 @@
 
 压缩包 13,814,953 bytes，SHA256 `c59c745c8842deede53f9b82923baabf8750992403176bea0fba6a4f9b1ef69d`，manifest 包含 198 个文件。保留全部隔离原型源码、原始计时、失败日志、真实 SGLang 源码快照及最终/IO4 profile，不含模型权重和大 fixture。
 
-本地同步目标为 `~/LLMInfer/profile/ncu/sm90-megamhc-optimization-20261121/`。其完整性以该目录的 `local-verification.json` 为准；网络中断留下的 `.tar.gz` 部分文件不能当作完整归档。仓库中上述精简证据已从完整 tar members 提取并按远端 manifest 校验。
+新增 198 个 manifest 文件已完整同步至 `~/LLMInfer/profile/ncu/sm90-megamhc-optimization-20261121/`，整包及全部逐文件 SHA256 均通过；证明在该目录的 `local-verification.json` 和本索引的 `profile-sync-verification.json`。三批归档合计 282 个 manifest 文件已复核。网络中断后的传输通过普通交互 SSH 小块续传完成，远端原件未修改。
 
 [优化机制、负收益原因、修正过程与复现命令](../../docs/experimental/sm90-mega-mhc-optimization-20261121.md)。这些是单 GPU mHC boundary 结果，不代表 MoE 共跑或服务端到端收益。

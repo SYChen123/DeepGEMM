@@ -1,0 +1,28 @@
+{
+  "verified_at_utc": "2026-11-21T14:27:00.901558+00:00",
+  "archives": [
+    {
+      "directory": "/Users/chensiyuan/LLMInfer/profile/ncu/sm90-megamhc-double-20261121",
+      "archive_size": 16529019,
+      "archive_sha256": "56d6b47ed910bdb74dd2b79f0c05d3b4af2f798f39158ae90c41159cb513105d",
+      "verified_files": 79,
+      "scp_exit_code": 0,
+      "note": "Archive and every manifest file verified; an idle SCP SSH channel may be closed after full transfer."
+    },
+    {
+      "directory": "/Users/chensiyuan/LLMInfer/profile/ncu/sm90-megamhc-20261118-profiles-v1",
+      "archive_size": 6832157,
+      "archive_sha256": "ca1b328b55626ca43cd70d21bb371560c6bcaee5e89623a9e240325909e091f4",
+      "verified_files": 5,
+      "scp_exit_code": 0,
+      "note": "Archive and every manifest file verified; an idle SCP SSH channel may be closed after full transfer."
+    },
+    {
+      "directory": "/Users/chensiyuan/LLMInfer/profile/ncu/sm90-megamhc-optimization-20261121",
+      "archive_size": 13814953,
+      "archive_sha256": "c59c745c8842deede53f9b82923baabf8750992403176bea0fba6a4f9b1ef69d",
+      "verified_files": 198,
+      "note": "Resumed normal SSH byte-range transfer; archive and every manifest file verified."
+    }
+  ]
+}
