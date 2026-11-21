@@ -1,0 +1,105 @@
+{
+  "local_sources": {
+    "csrc/apis/mega_mhc.hpp": "c629d46ca11aed3a1ba81d93c2eace2ef4fadbcf0bffa7051a12b76cae53d0e5",
+    "scripts/bench_sm90_megamhc.py": "680be33a0a8b023522a3a379953ebaf80561c35b1996c7d0577441d372965e4b",
+    "tests/test_sm90_mega_mhc.py": "96ef4a965a72c317fda2026969c071c1ec26e36035217aab3a2444ba4d47451b"
+  },
+  "baseline_sglang_sources": {
+    "sources/sglang/kernels/ops/layernorm/hc_combine_norm.py": "f22e25cfe8c572d0f0130bdfc738659ab90709b6a847edf490af5b500590b092",
+    "sources/sglang/kernels/ops/layernorm/mhc.py": "f91aadd2e0060798b3877cebf460206f43aa0f4ee53f40b7b91f83020565f64a",
+    "sources/sglang/srt/layers/layernorm.py": "98072d836e0c77312058521ee1015c80177b2c370da7408fd066eec61015ff21",
+    "sources/sglang/srt/models/deepseek_v4_mhc.py": "bf2d1eeacaf864f7df1f554bd897834b31b01a76641b0d33684517203d557734"
+  },
+  "versions": {
+    "v1": {
+      "extension_sha256": "2d66c09f42c9386483e2ec82b0ae7c72e0557eb769d37e21725a6fe1af0845e7",
+      "headers": {
+        "impls/sm90_mega_mhc.cuh": "6982d0d8254161efe6477a752d1e74fcd903d63018fd87f14f10d9a056f314e3",
+        "scheduler/mega_mhc.cuh": "e5295788c70140f337dd7621bd845f0952fe0e8eaf9fc42f38f59982c86ea56b",
+        "layout/mega_mhc.cuh": "e044a60196bb8cbb61fdce2362a904c83f03b5db407afcdaf80b8ea3f32dcac6",
+        "layout/sm90_mega_mhc.cuh": "34c2bcb9004879cee9b556eae03b77bc58baf28543f883b4bdc7472be93daa3e"
+      }
+    },
+    "poll_relaxed": {
+      "extension_sha256": "2d66c09f42c9386483e2ec82b0ae7c72e0557eb769d37e21725a6fe1af0845e7",
+      "headers": {
+        "impls/sm90_mega_mhc.cuh": "6982d0d8254161efe6477a752d1e74fcd903d63018fd87f14f10d9a056f314e3",
+        "scheduler/mega_mhc.cuh": "2c7b6e0f44f05871c22931ce16ffcd6b224a738d522f81f3f0b4837ebb2bb4da",
+        "layout/mega_mhc.cuh": "e044a60196bb8cbb61fdce2362a904c83f03b5db407afcdaf80b8ea3f32dcac6",
+        "layout/sm90_mega_mhc.cuh": "34c2bcb9004879cee9b556eae03b77bc58baf28543f883b4bdc7472be93daa3e"
+      }
+    },
+    "poll_fast_sleep": {
+      "extension_sha256": "2d66c09f42c9386483e2ec82b0ae7c72e0557eb769d37e21725a6fe1af0845e7",
+      "headers": {
+        "impls/sm90_mega_mhc.cuh": "6982d0d8254161efe6477a752d1e74fcd903d63018fd87f14f10d9a056f314e3",
+        "scheduler/mega_mhc.cuh": "f1190ed4c513885c8e42b933792dbf4b2c4923ff2b568e3ced4676e297758554",
+        "layout/mega_mhc.cuh": "e044a60196bb8cbb61fdce2362a904c83f03b5db407afcdaf80b8ea3f32dcac6",
+        "layout/sm90_mega_mhc.cuh": "34c2bcb9004879cee9b556eae03b77bc58baf28543f883b4bdc7472be93daa3e"
+      }
+    },
+    "batch2": {
+      "extension_sha256": "2d66c09f42c9386483e2ec82b0ae7c72e0557eb769d37e21725a6fe1af0845e7",
+      "headers": {
+        "impls/sm90_mega_mhc.cuh": "a09f67ad9eeba1397d5e46c52ca89ecb1828268bb72abf32a7d3f9ee3932ce46",
+        "scheduler/mega_mhc.cuh": "e5295788c70140f337dd7621bd845f0952fe0e8eaf9fc42f38f59982c86ea56b",
+        "layout/mega_mhc.cuh": "e044a60196bb8cbb61fdce2362a904c83f03b5db407afcdaf80b8ea3f32dcac6",
+        "layout/sm90_mega_mhc.cuh": "34c2bcb9004879cee9b556eae03b77bc58baf28543f883b4bdc7472be93daa3e"
+      }
+    },
+    "splits2": {
+      "extension_sha256": "2d66c09f42c9386483e2ec82b0ae7c72e0557eb769d37e21725a6fe1af0845e7",
+      "headers": {
+        "impls/sm90_mega_mhc.cuh": "1436045728cb3b5b15701eb7184cfc2fff83d135ac3da9af8418daeae8a0a1d7",
+        "scheduler/mega_mhc.cuh": "e5295788c70140f337dd7621bd845f0952fe0e8eaf9fc42f38f59982c86ea56b",
+        "layout/mega_mhc.cuh": "e044a60196bb8cbb61fdce2362a904c83f03b5db407afcdaf80b8ea3f32dcac6",
+        "layout/sm90_mega_mhc.cuh": "34c2bcb9004879cee9b556eae03b77bc58baf28543f883b4bdc7472be93daa3e"
+      }
+    },
+    "splits4": {
+      "extension_sha256": "2d66c09f42c9386483e2ec82b0ae7c72e0557eb769d37e21725a6fe1af0845e7",
+      "headers": {
+        "impls/sm90_mega_mhc.cuh": "e94936f39b5cb82432cc8262fe7686118bf533c955e6ae68f71773764bac3fff",
+        "scheduler/mega_mhc.cuh": "e5295788c70140f337dd7621bd845f0952fe0e8eaf9fc42f38f59982c86ea56b",
+        "layout/mega_mhc.cuh": "e044a60196bb8cbb61fdce2362a904c83f03b5db407afcdaf80b8ea3f32dcac6",
+        "layout/sm90_mega_mhc.cuh": "34c2bcb9004879cee9b556eae03b77bc58baf28543f883b4bdc7472be93daa3e"
+      }
+    },
+    "splits8": {
+      "extension_sha256": "2d66c09f42c9386483e2ec82b0ae7c72e0557eb769d37e21725a6fe1af0845e7",
+      "headers": {
+        "impls/sm90_mega_mhc.cuh": "dba5e02f431af805652fcdcfcfe5bfc4d762c42079580bb0d6f92bc9b08b96a0",
+        "scheduler/mega_mhc.cuh": "e5295788c70140f337dd7621bd845f0952fe0e8eaf9fc42f38f59982c86ea56b",
+        "layout/mega_mhc.cuh": "e044a60196bb8cbb61fdce2362a904c83f03b5db407afcdaf80b8ea3f32dcac6",
+        "layout/sm90_mega_mhc.cuh": "34c2bcb9004879cee9b556eae03b77bc58baf28543f883b4bdc7472be93daa3e"
+      }
+    },
+    "padding": {
+      "extension_sha256": "2d66c09f42c9386483e2ec82b0ae7c72e0557eb769d37e21725a6fe1af0845e7",
+      "headers": {
+        "impls/sm90_mega_mhc.cuh": "22221de8de91a98464b532297f08ca5945bbaf6d24532d811b91c6b86adc38e1",
+        "scheduler/mega_mhc.cuh": "e5295788c70140f337dd7621bd845f0952fe0e8eaf9fc42f38f59982c86ea56b",
+        "layout/mega_mhc.cuh": "e044a60196bb8cbb61fdce2362a904c83f03b5db407afcdaf80b8ea3f32dcac6",
+        "layout/sm90_mega_mhc.cuh": "34c2bcb9004879cee9b556eae03b77bc58baf28543f883b4bdc7472be93daa3e"
+      }
+    },
+    "io4": {
+      "extension_sha256": "2d66c09f42c9386483e2ec82b0ae7c72e0557eb769d37e21725a6fe1af0845e7",
+      "headers": {
+        "impls/sm90_mega_mhc.cuh": "6982d0d8254161efe6477a752d1e74fcd903d63018fd87f14f10d9a056f314e3",
+        "scheduler/mega_mhc.cuh": "e5295788c70140f337dd7621bd845f0952fe0e8eaf9fc42f38f59982c86ea56b",
+        "layout/mega_mhc.cuh": "4ccecf4ae93b56ae3f07209dfdcd5ef29b1fc5aa0e5a655af23f2c253f78de28",
+        "layout/sm90_mega_mhc.cuh": "6215f5ccc5c2219db356ceb1a8d5ef96b5c29b9a518e9a3df13b1913aa5be422"
+      }
+    },
+    "heuristic4": {
+      "extension_sha256": "df048dbf0f6044f426d2c3782ca18e50fd7af3367f41d4ae4c5cca86895994a5",
+      "headers": {
+        "impls/sm90_mega_mhc.cuh": "6982d0d8254161efe6477a752d1e74fcd903d63018fd87f14f10d9a056f314e3",
+        "scheduler/mega_mhc.cuh": "e5295788c70140f337dd7621bd845f0952fe0e8eaf9fc42f38f59982c86ea56b",
+        "layout/mega_mhc.cuh": "e044a60196bb8cbb61fdce2362a904c83f03b5db407afcdaf80b8ea3f32dcac6",
+        "layout/sm90_mega_mhc.cuh": "34c2bcb9004879cee9b556eae03b77bc58baf28543f883b4bdc7472be93daa3e"
+      }
+    }
+  }
+}

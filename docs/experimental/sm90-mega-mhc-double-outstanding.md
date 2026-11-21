@@ -1,6 +1,8 @@
 # 双 outstanding atom：候选优化归档
 
-状态：2026-11-18 按用户要求停止进一步测试。默认 kernel 恢复为首轮已测 V1；候选代码保存在 [补丁](sm90-mega-mhc-double-outstanding.patch)。候选通过正确性回归，未做性能对比，不能将 V1 的 1.350× / 1.035× 结果算到候选版上。
+2026-11-21 更新：复测已完成。4096-token latency 从 V1 的 152.3598 降至 151.7565 µs，仅降低 0.40%；32 tokens 无稳定收益，不采用该候选。后续合批、轮询、SIMT、stage 分配与最终 split 调整见 [完整优化记录](sm90-mega-mhc-optimization-20261121.md)。
+
+以下为 **2026-11-18 停测时的历史归档**。候选代码保存在 [补丁](sm90-mega-mhc-double-outstanding.patch)。当时仅通过正确性回归，不能将首轮 V1 的 1.350× / 1.035× 结果算到候选版上。
 
 ## 原理
 

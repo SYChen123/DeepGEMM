@@ -92,12 +92,12 @@ def test_tf32_shared_a_swizzle():
     check(inputs, outputs, "bf16")
 
 
-def test_same_capture_stream_concurrent_replay():
+def check_same_capture_stream_concurrent_replay(token_counts):
     # Upstream #503: graph nodes captured on the same stream must own different
     # split state when replayed concurrently on different streams.
     fixtures = []
-    for seed in (31, 47):
-        inputs, _ = make_inputs(65, 5120, seed, True)
+    for seed, tokens in zip((31, 47), token_counts):
+        inputs, _ = make_inputs(tokens, 5120, seed, True)
         outputs = make_outputs(inputs, "bf16")
         run_mega_mhc(inputs, outputs)
         fixtures.append((inputs, outputs))
@@ -121,6 +121,15 @@ def test_same_capture_stream_concurrent_replay():
         torch.cuda.synchronize()
         for inputs, outputs in fixtures:
             check(inputs, outputs, "bf16")
+
+
+def test_same_capture_stream_concurrent_replay():
+    check_same_capture_stream_concurrent_replay((65, 65))
+
+
+def test_prefill_concurrent_replay():
+    # Exercise different partial-workspace sizes in the SM90 prefill heuristic.
+    check_same_capture_stream_concurrent_replay((1024, 4096))
 
 
 def test_deterministic_repeated_launch():

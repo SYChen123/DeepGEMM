@@ -1,8 +1,9 @@
 """Single-GPU DSv4.1 shifted Mega mHC correctness, latency and kernel timeline.
 
 Build with scripts/build_sm90_mhc_dev.py first. Example (physical GPU 1):
-  CUDA_VISIBLE_DEVICES=1 python /mnt/a6intlalipayplus-idt2-aidc/common/alipayplus/infer/xiaoyuan/code/DeepGEMM/scripts/bench_sm90_megamhc.py \
-       --model /mnt/a6intlalipayplus-a6/common/models/DeepSeek-V4.1-Flash/ --tokens 4096 32 --output results.json
+  CUDA_VISIBLE_DEVICES=1 PYTHONPATH=$PWD/build-sm90-mhc \
+    /path/to/csy/bin/python scripts/bench_sm90_megamhc.py \
+    --model /path/to/DeepSeek-V4.1-Flash --tokens 4096 32 --output results.json
 
 Collect %globaltimer traces in a SEPARATE launch after uninstrumented timing:
   CUDA_VISIBLE_DEVICES=1 PYTHONPATH=$PWD/build-sm90-mhc \
@@ -215,8 +216,9 @@ def main():
     eps, rms_eps, iters = config["hc_eps"], config["rms_norm_eps"], config["hc_sinkhorn_iters"]
     fn, scale, base, weight = [material[k] for k in ("fn", "scale", "base", "weight")]
     cfg = mhc.HcConfig(4, iters, eps, rms_eps, hidden, True, False)
-    norm = SimpleNamespace(weight=weight, variance_epsilon=rms_eps,
-                           cast_x_before_out_mul=False, variance_size_override=None)
+    # Other batch sizes may dispatch to separate combine and RMSNorm kernels.
+    norm = mhc.RMSNorm(hidden, eps=rms_eps, weight_dtype=weight.dtype).to(weight.device)
+    norm.weight.copy_(weight)
     hc = mhc.HcSubLayer(cfg, fn, scale, base, norm, bf16_parts=split_bf16_hc_weight(fn))
     metadata = dict(device=torch.cuda.get_device_name(), sms=deep_gemm.get_num_sms(),
                     torch=torch.__version__, cuda=torch.version.cuda, deep_gemm=deep_gemm.__file__,

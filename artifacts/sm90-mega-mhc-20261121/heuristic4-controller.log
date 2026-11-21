@@ -1,0 +1,12 @@
+START regression
+DONE regression 0
+START multiwave
+DONE multiwave 0
+START timing-0-v1
+DONE timing-0-v1 0
+START timing-1-heuristic4
+DONE timing-1-heuristic4 0
+START timing-2-heuristic4
+DONE timing-2-heuristic4 0
+START timing-3-v1
+DONE timing-3-v1 0

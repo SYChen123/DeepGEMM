@@ -1,0 +1,38 @@
+{
+  "v1": {
+    "dram__bytes_read.sum": {
+      "value": 277.8624,
+      "unit": "Mbyte"
+    },
+    "dram__bytes_write.sum": {
+      "value": 251.702016,
+      "unit": "Mbyte"
+    },
+    "dram__throughput.avg.pct_of_peak_sustained_elapsed": {
+      "value": 71.008943,
+      "unit": "%"
+    },
+    "gpu__time_duration.sum": {
+      "value": 155.008,
+      "unit": "us"
+    }
+  },
+  "heuristic4": {
+    "dram__bytes_read.sum": {
+      "value": 255.460864,
+      "unit": "Mbyte"
+    },
+    "dram__bytes_write.sum": {
+      "value": 249.419264,
+      "unit": "Mbyte"
+    },
+    "dram__throughput.avg.pct_of_peak_sustained_elapsed": {
+      "value": 70.788351,
+      "unit": "%"
+    },
+    "gpu__time_duration.sum": {
+      "value": 148.256,
+      "unit": "us"
+    }
+  }
+}

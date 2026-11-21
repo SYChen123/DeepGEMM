@@ -13,14 +13,16 @@ namespace deep_gemm::mega_mhc {
 
 namespace mhc_layout = layout::mega_mhc;
 
-static uint32_t get_num_splits(const uint32_t num_m_blocks, const uint32_t hidden, const uint32_t num_sms) {
+static uint32_t get_num_splits(const uint32_t num_m_blocks, const uint32_t hidden, const uint32_t num_sms, const int arch_major) {
     if (heuristics_runtime->get_deterministic_algorithms())
         return mhc_layout::kDefaultNumSplits;
 
+    // Hopper amortizes persistent task and partial-reduction costs with fewer splits.
+    const uint32_t min_num_splits = arch_major == 9 ? 4u : mhc_layout::kDefaultNumSplits;
     // Fewest splits that still reach the shortest possible longest task
     const uint32_t num_k_blocks = hidden / mhc_layout::BLOCK_K;
     const uint32_t max_num_splits = cute::min(
-        mhc_layout::kNumMaxSplits, cute::max(mhc_layout::kDefaultNumSplits, num_sms / num_m_blocks));
+        mhc_layout::kNumMaxSplits, cute::max(min_num_splits, num_sms / num_m_blocks));
     return math::ceil_div(num_k_blocks, math::ceil_div(num_k_blocks, max_num_splits));
 }
 
@@ -225,7 +227,7 @@ static void mega_mhc(const torch::Tensor& x,
     DG_HOST_ASSERT(arch_major == 9 or arch_major == 10);
     const auto num_sms = runtime->get_num_sms();
     const auto num_m_blocks = mhc_layout::Workspace<>::get_num_m_blocks(static_cast<uint32_t>(num_tokens));
-    const auto num_splits = get_num_splits(num_m_blocks, static_cast<uint32_t>(hidden), static_cast<uint32_t>(num_sms));
+    const auto num_splits = get_num_splits(num_m_blocks, static_cast<uint32_t>(hidden), static_cast<uint32_t>(num_sms), arch_major);
     const auto num_mhc_scratch_bytes = mhc_layout::Workspace<>::get_num_scratch_bytes(num_m_blocks, num_splits);
 
     const bool needs_bf16_scratch = not y_bf16.has_value() and is_shifted;

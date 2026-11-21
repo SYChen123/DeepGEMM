@@ -2,7 +2,9 @@
 
 调查日期：2026-11-18。开发基线 `4f9479c`（`codex/0.2.2-sm90-megamoe-pr473`），开发分支 `codex/sm90-megamhc`，实现 commit `3a7c6a1`。
 
-已测 V1 在 H200 单卡、真实 V4.1-Flash mHC/Norm 权重和随机激活下，4096-token boundary 加速 1.350×，32-token 加速 1.035×。默认 kernel 已恢复为这份实测快照。双 outstanding atom 候选仅通过正确性回归，按用户要求停止性能复测并单独归档。
+2026-11-21 更新：默认采用 SM90 的较少 split 启发式，4096-token boundary 从同轮 V1 的 152.34 µs 降至 147.11 µs（降低 3.43%，对 SGLang 约 1.394×）。decode 路径保持原设计。双 outstanding 已复测，prefill 仅改善 0.40%，未采用。实验、负收益原因与修正过程见 [优化记录](experimental/sm90-mega-mhc-optimization-20261121.md)。
+
+以下表格与延迟图保留 **2026-11-18 首轮 V1** 的独立结果：H200 单卡、真实 V4.1-Flash mHC/Norm 权重和随机激活。默认 device kernel 沿用该快照，当前 host split 启发式已更新。
 
 | token/rank | SGLang baseline (µs) | SM90 Mega mHC (µs) | 加速比 | latency 变化 |
 |---:|---:|---:|---:|---:|
@@ -151,7 +153,7 @@ flowchart LR
 
 当前路径保留 normal/shifted、BF16/FP8、GEMM/routed/shared SF。用于 V4.1 的主比较是 shifted BF16；FP8 输出保留 UE8M0 合约，不能直接假设它等同于旧 SM90 FP32 scale GEMM 接口。
 
-H200 实际 launch：`grid=(132,1,1)`、`block=(768,1,1)`、dynamic SMEM=220160 B。4096 tokens 采用 64 m-blocks、16 splits、1024 producer tasks；32 tokens 采用 1 m-block、40 splits、40 producer tasks。寄存器预算为 WG0=32、两个 Post WG 各 136、WGMMA WG=48、Mix WG=32、Shifted Norm WG=96；按 128 threads/WG 合计 61440 个 32-bit registers。静态 SMEM 和寄存器限制使每 SM 最多驻留一 CTA，24/64 warps 的理论 occupancy 为 37.5%。
+H200 实际 launch：`grid=(132,1,1)`、`block=(768,1,1)`、dynamic SMEM=220160 B。首轮 V1 的 4096 tokens 采用 64 m-blocks、16 splits、1024 producer tasks；当前默认改为 4 splits、256 tasks。32 tokens 保持 1 m-block、40 splits、40 producer tasks。寄存器预算为 WG0=32、两个 Post WG 各 136、WGMMA WG=48、Mix WG=32、Shifted Norm WG=96；按 128 threads/WG 合计 61440 个 32-bit registers。静态 SMEM 和寄存器限制使每 SM 最多驻留一 CTA，24/64 warps 的理论 occupancy 为 37.5%。
 
 Post 的 thread mapping：每 warp 16 token rows，lane 四个一组，每 lane 拥有相隔 8 行的两组 row 和一个 column pair。WGMMA accumulator 的每 lane 12 个 FP32 对应两行各 6 个输出；三个 8-column group 合计 24 个 HC outputs。shared A 的 32B swizzle 以 byte-address bit 7 翻转 bit 4，因此 float K8 row 中的 bank group 使用 `((row >> 2) & 1)`，与 128B IO swizzle 的行位不同。
 
@@ -186,7 +188,7 @@ Post 的 thread mapping：每 warp 16 token rows，lane 四个一组，每 lane 
 
 profile 的设备缓冲为 `[num_sms,24,4097,2] int64`，每 warp 一位 lane 写入 `(event+aux,%globaltimer)`；slot 0 记录尝试事件数，超过 4096 显式报告 dropped events。关闭开关时 trace 代码通过模板完全消除。Perfetto 文件中的 warp interval 累加值不是 kernel latency。
 
-### 已完成验证与观察
+### 2026-11-18 首轮验证与观察
 
 - 默认 V1：4096/32 tokens 的真实权重精度、独立 FP32 参考以及 5 次变输入 graph replay 通过。两 shape 的五个输出最大 relative-L2 分别约 1.73e-5 / 2.90e-5（对 SGLang baseline）。
 - 双 outstanding 候选：5 组回归通过，模式测试含 8 个组合；覆盖 FP8 与 SF、tails、one-hot swizzle、concurrent replay、deterministic。日志和候选 SHA256 单独归档。默认 V1 没有在修订后的整套回归上重跑，不能将候选日志写成 V1 日志。
@@ -208,4 +210,4 @@ CP guard 当前来自静态 `cfg.cp_prefill`，会连带限制启用 CP 的服�
 
 Hopper 资源限制参见 [NVIDIA Hopper Tuning Guide](https://docs.nvidia.com/cuda/hopper-tuning-guide/)，packed FP32 intrinsic 的架构要求参见 [CUDA Math API](https://docs.nvidia.com/cuda/cuda-math-api/cuda_math_api/group__CUDA__MATH__INTRINSIC__SINGLE.html)。
 
-当前状态：按用户要求停止双 outstanding atom 性能测试并归档；默认保留已测 V1，后续计划见候选记录。
+当前状态：2026-11-21 完成双 outstanding 与后续优化复测，最终保留 SM90 split 启发式调整，通过六组回归和大 prefill 并发 replay。两批历史 profile 及新增实验 profile 均单独归档，路径、计时和限制见 [优化记录](experimental/sm90-mega-mhc-optimization-20261121.md)。
