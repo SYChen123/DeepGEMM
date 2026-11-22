@@ -18,6 +18,7 @@
 #include <deep_gemm/ptx/utils.cuh>
 #include <deep_gemm/scheduler/mega_mhc.cuh>
 #include <deep_gemm/epilogue/sm100_mega_mhc.cuh>
+#include <deep_gemm/epilogue/sm90_mega_mhc.cuh>
 
 namespace deep_gemm {
 
@@ -409,9 +410,9 @@ CUTLASS_GLOBAL void __launch_bounds__(kNumThreads, 1)
                 for (uint32_t k_block_idx = 0; k_block_idx < num_task_k_blocks; ++ k_block_idx) {
                     // Wait TMA residual and X arrival
                     CUTE_TIE_DECL(io_pipeline.advance(), io_stage_idx, io_phase);
-                    trace(5, io_stage_idx);
+                    trace(5, 0x10000u | io_stage_idx);
                     smem.full_io_barriers[io_stage_idx].wait(io_phase);
-                    trace(6, io_stage_idx);
+                    trace(6, 0x10000u | io_stage_idx);
 
                     #pragma unroll 2
                     for (uint32_t umma_k_idx = kPostWorkerIdx; umma_k_idx < BLOCK_K / UMMA_K;
@@ -624,10 +625,18 @@ CUTLASS_GLOBAL void __launch_bounds__(kNumThreads, 1)
         if constexpr (kIsShifted) {
             cutlass::arch::warpgroup_reg_dealloc<kNumLightweightRegisters>();
             const uint32_t warp_idx_in_mix_wg = warp_idx - kMixWGIdx * kNumWarpsPerWG;
-            for (uint32_t token_idx = blockIdx.x * kNumWarpsPerWG + warp_idx_in_mix_wg;
-                 token_idx < norm_args.num_tokens; token_idx += kNumSMs * kNumWarpsPerWG)
-                epilogue::mega_mhc::run_mix_task<kHidden, true>(
-                    workspace, gmem_split_barriers, mix_args, token_idx, lane_idx);
+            // Deterministic mode fixes 16 splits and retains the serial reduction
+            // order across batch sizes. Large prefill keeps its warp-per-token path.
+            if (kNumSplits > kDefaultNumSplits && norm_args.num_tokens >= 16 && norm_args.num_tokens <= BLOCK_M) {
+                for (uint32_t token_idx = blockIdx.x; token_idx < norm_args.num_tokens; token_idx += kNumSMs)
+                    epilogue::sm90_mega_mhc::run_shifted_mix_task_wg<kHidden>(
+                        smem, workspace, gmem_split_barriers, mix_args, token_idx, warp_idx_in_mix_wg, lane_idx, trace);
+            } else {
+                for (uint32_t token_idx = blockIdx.x * kNumWarpsPerWG + warp_idx_in_mix_wg;
+                     token_idx < norm_args.num_tokens; token_idx += kNumSMs * kNumWarpsPerWG)
+                    epilogue::mega_mhc::run_mix_task<kHidden, true>(
+                        workspace, gmem_split_barriers, mix_args, token_idx, lane_idx, trace);
+            }
         }
     }
 
@@ -652,7 +661,7 @@ CUTLASS_GLOBAL void __launch_bounds__(kNumThreads, 1)
         if ((wg_idx >= kFirstPostWGIdx and wg_idx < kWorkspaceEpilogueWGIdx) or wg_idx == kNormWGIdx) {
             epilogue::mega_mhc::run_shifted_norm_worker<kHidden, kNumSMs, kNumShiftedNormRegisters,
                                                         kStoreBF16, kStoreFP8, SF_BLOCK_M>(
-                smem, workspace, gmem_split_barriers, norm_args, lane_idx);
+                smem, workspace, gmem_split_barriers, norm_args, lane_idx, trace);
         }
     }
 

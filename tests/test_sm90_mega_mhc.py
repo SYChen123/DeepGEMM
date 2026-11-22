@@ -132,6 +132,23 @@ def test_prefill_concurrent_replay():
     check_same_capture_stream_concurrent_replay((1024, 4096))
 
 
+def test_decode_concurrent_replay():
+    check_same_capture_stream_concurrent_replay((32, 32))
+
+
+def test_decode_fp8_and_cooperative_reuse():
+    old_sms = deep_gemm.get_num_sms()
+    try:
+        # 27 uneven splits and two tokens per Mix WG exercise scratch reuse.
+        deep_gemm.set_num_sms(32)
+        check_modes_and_tails(True, 64, 5120, "bf16")
+        deep_gemm.set_num_sms(old_sms)
+        for layout in ("col", "extra"):
+            check_modes_and_tails(True, 32, 5120, layout)
+    finally:
+        deep_gemm.set_num_sms(old_sms)
+
+
 def test_deterministic_repeated_launch():
     inputs, _ = make_inputs(65, 5120, 11, True)
     a, b = make_outputs(inputs, "bf16"), make_outputs(inputs, "bf16")
@@ -145,6 +162,29 @@ def test_deterministic_repeated_launch():
             assert torch.equal(a[name], b[name]), name
     finally:
         deep_gemm.use_deterministic_algorithms(old)
+
+
+def test_deterministic_across_batch_and_grid():
+    inputs, _ = make_inputs(65, 5120, 73, True)
+    small = dict(inputs)
+    for name in ("x", "residual", "post_mix", "comb_res_mix", "shifted_prev_mix"):
+        small[name] = inputs[name][:32]
+    expected = make_outputs(inputs, "bf16")
+    old_det = deep_gemm.get_deterministic_algorithms()
+    old_sms = deep_gemm.get_num_sms()
+    try:
+        deep_gemm.use_deterministic_algorithms(True)
+        run_mega_mhc(inputs, expected)
+        for sms in (old_sms, 32):
+            deep_gemm.set_num_sms(sms)
+            actual = make_outputs(small, "bf16")
+            run_mega_mhc(small, actual)
+            torch.cuda.synchronize()
+            for name, tensor in logical_outputs(actual).items():
+                assert torch.equal(tensor, expected[name][:32]), (sms, name)
+    finally:
+        deep_gemm.set_num_sms(old_sms)
+        deep_gemm.use_deterministic_algorithms(old_det)
 
 
 if __name__ == "__main__":

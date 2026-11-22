@@ -18,7 +18,12 @@ struct SplitBarrier {
     }
 
     static CUTLASS_DEVICE uint64_t encode_state(const uint64_t grid_idx, const uint32_t num_arrived_splits = 0) {
-        return (grid_idx + 1) * kNumSplitBarriers * kNumMaxSplits + num_arrived_splits;
+#if defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 900 && __CUDA_ARCH__ < 1000
+        constexpr uint32_t max_splits = kNumMaxSM90Splits;
+#else
+        constexpr uint32_t max_splits = kNumMaxSplits;
+#endif
+        return (grid_idx + 1) * kNumSplitBarriers * max_splits + num_arrived_splits;
     }
 
     static CUTLASS_DEVICE void init(uint64_t* gmem_split_barriers, const uint32_t& m_block_idx) {

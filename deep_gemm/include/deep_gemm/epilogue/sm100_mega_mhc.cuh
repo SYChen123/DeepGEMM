@@ -13,34 +13,17 @@ namespace deep_gemm::epilogue::mega_mhc {
 
 using namespace layout::mega_mhc;
 
-// Reduce one token's split partials and produce its Mix coefficients.
-template <uint32_t kHidden, bool kIsShifted, uint32_t kNumSplits>
-CUTLASS_DEVICE float run_mix_task(const Workspace<kNumSplits>& workspace, uint64_t* gmem_split_barriers,
-                                  const MixArgs& mix_args,
-                                  const uint32_t& token_idx, const uint32_t& lane_idx) {
-    const uint32_t m_block_idx = token_idx / BLOCK_M;
-    const uint32_t row_idx = token_idx % BLOCK_M;
-    sched::mega_mhc::Mix::wait<kNumSplits>(gmem_split_barriers, m_block_idx);
+struct NoMixTrace {
+    CUTLASS_DEVICE void operator()(uint32_t, uint64_t) const {}
+};
 
-    // Reduce HC norm statistics and GEMM outputs across the split tasks.
+// Both serial and SM90 cooperative reduction use the same numerical epilogue.
+template <uint32_t kHidden, bool kIsShifted, typename Trace = NoMixTrace>
+CUTLASS_DEVICE float finish_mix(const float hc_output, const float hc_norm_sqr_sum,
+                               const MixArgs& mix_args, const uint32_t token_idx,
+                               const uint32_t lane_idx, const Trace& trace = {}) {
+    trace(15, token_idx);
     const bool is_hc_output_lane = lane_idx < kNumHCOutputs;
-    const uint32_t first_task_idx = m_block_idx * kNumSplits;
-    const auto hc_norm_sqr_sum_partials = workspace.get_hc_norm_sqr_sum_partial_ptr(first_task_idx);
-    float hc_norm_sqr_sum = 0.0f;
-    #pragma unroll
-    for (uint32_t k_split_idx = lane_idx; k_split_idx < kNumSplits; k_split_idx += 32)
-        hc_norm_sqr_sum += hc_norm_sqr_sum_partials[
-            k_split_idx * kNumSqrSumPartialElementsPerTask + row_idx];
-    hc_norm_sqr_sum = math::warp_reduce_sum(hc_norm_sqr_sum);
-
-    const uint32_t safe_hc_output_idx = cute::min(lane_idx, kNumHCOutputs - 1);
-    const auto gemm_partials = workspace.get_gemm_partial_ptr(first_task_idx);
-    float hc_output = 0.0f;
-    #pragma unroll
-    for (uint32_t k_split_idx = 0; k_split_idx < kNumSplits; ++ k_split_idx)
-        hc_output += gemm_partials[k_split_idx * kNumGemmPartialElementsPerTask +
-                                   row_idx * kNumHCOutputs + safe_hc_output_idx];
-    hc_output = is_hc_output_lane ? hc_output : 0.0f;
     const float hc_rms_scale = rsqrtf(hc_norm_sqr_sum * (1.0f / static_cast<float>(kNumRoutes * kHidden)) + mix_args.hc_norm_eps);
 
     // Warp lanes map to [Pre routes | Post routes | Comb routes x routes | inactive].
@@ -61,6 +44,7 @@ CUTLASS_DEVICE float run_mix_task(const Workspace<kNumSplits>& workspace, uint64
     }
     __syncwarp();
 
+    uint32_t executed_iters = 1;
     const auto sinkhorn_normalize = [&](float value) {
         // Comb logits occupy a row-major route x route region after Pre and Post.
         value = is_comb_lane ? value : 0.0f;
@@ -82,6 +66,7 @@ CUTLASS_DEVICE float run_mix_task(const Workspace<kNumSplits>& workspace, uint64
             row_sum = math::warp_reduce_sum<kNumRoutes>(value);
             value *= math::fast_rcp(row_sum + mix_args.sinkhorn_eps);
             value *= math::fast_rcp(get_col_sum(value) + mix_args.sinkhorn_eps);
+            executed_iters = iteration + 1;
         }
         return value;
     };
@@ -98,7 +83,44 @@ CUTLASS_DEVICE float run_mix_task(const Workspace<kNumSplits>& workspace, uint64
     }
     __syncwarp();
 
+    trace(16, token_idx);
+    trace(19, (static_cast<uint64_t>(token_idx) << 32) | executed_iters);
     return mix_value;
+}
+
+// Reduce one token's split partials and produce its Mix coefficients.
+template <uint32_t kHidden, bool kIsShifted, uint32_t kNumSplits, typename Trace = NoMixTrace>
+CUTLASS_DEVICE float run_mix_task(const Workspace<kNumSplits>& workspace, uint64_t* gmem_split_barriers,
+                                  const MixArgs& mix_args,
+                                  const uint32_t& token_idx, const uint32_t& lane_idx, const Trace& trace = {}) {
+    const uint32_t m_block_idx = token_idx / BLOCK_M;
+    const uint32_t row_idx = token_idx % BLOCK_M;
+    trace(11, token_idx);
+    sched::mega_mhc::Mix::wait<kNumSplits>(gmem_split_barriers, m_block_idx);
+    trace(12, token_idx);
+    trace(13, token_idx);
+
+    // Reduce HC norm statistics and GEMM outputs across the split tasks.
+    const bool is_hc_output_lane = lane_idx < kNumHCOutputs;
+    const uint32_t first_task_idx = m_block_idx * kNumSplits;
+    const auto hc_norm_sqr_sum_partials = workspace.get_hc_norm_sqr_sum_partial_ptr(first_task_idx);
+    float hc_norm_sqr_sum = 0.0f;
+    #pragma unroll
+    for (uint32_t k_split_idx = lane_idx; k_split_idx < kNumSplits; k_split_idx += 32)
+        hc_norm_sqr_sum += hc_norm_sqr_sum_partials[
+            k_split_idx * kNumSqrSumPartialElementsPerTask + row_idx];
+    hc_norm_sqr_sum = math::warp_reduce_sum(hc_norm_sqr_sum);
+
+    const uint32_t safe_hc_output_idx = cute::min(lane_idx, kNumHCOutputs - 1);
+    const auto gemm_partials = workspace.get_gemm_partial_ptr(first_task_idx);
+    float hc_output = 0.0f;
+    #pragma unroll
+    for (uint32_t k_split_idx = 0; k_split_idx < kNumSplits; ++ k_split_idx)
+        hc_output += gemm_partials[k_split_idx * kNumGemmPartialElementsPerTask +
+                                   row_idx * kNumHCOutputs + safe_hc_output_idx];
+    hc_output = is_hc_output_lane ? hc_output : 0.0f;
+    trace(14, token_idx);
+    return finish_mix<kHidden, kIsShifted>(hc_output, hc_norm_sqr_sum, mix_args, token_idx, lane_idx, trace);
 }
 
 // Every warp-wide pack spans 256 hidden elements.
@@ -289,11 +311,12 @@ struct ShiftedNormPack {
     uint4 weight;
 };
 
-template <uint32_t kHidden, bool kStoreBF16, bool kStoreFP8, uint32_t SF_BLOCK_M, uint32_t kNumSplits>
+template <uint32_t kHidden, bool kStoreBF16, bool kStoreFP8, uint32_t SF_BLOCK_M, uint32_t kNumSplits,
+          typename Trace = NoMixTrace>
 CUTLASS_DEVICE void run_shifted_norm_task(const Workspace<kNumSplits>& workspace, uint64_t* gmem_split_barriers,
                                           const NormArgs& norm_args,
                                           const uint32_t& task_idx,
-                                          const uint32_t& num_partitions, const uint32_t& lane_idx) {
+                                          const uint32_t& num_partitions, const uint32_t& lane_idx, const Trace& trace = {}) {
     constexpr uint32_t kNumHiddenPacks = kHidden / kHiddenPerNormPack;
     // task_idx flattens [token pair, hidden-pack partition].
     const uint32_t partition_idx = task_idx % num_partitions;
@@ -304,7 +327,10 @@ CUTLASS_DEVICE void run_shifted_norm_task(const Workspace<kNumSplits>& workspace
     const bool has_second_token = m_idx + 1 < norm_args.num_tokens;
     uint2 shared_sf_row_indices = {};
 
+    trace(21, task_idx);
     sched::mega_mhc::Norm::wait<kNumSplits>(gmem_split_barriers, m_block_idx);
+    trace(22, task_idx);
+    trace(23, task_idx);
     const auto load_pack = [&](const uint64_t output_offset, const uint32_t hidden_idx) {
         return ShiftedNormPack{
             {ptx::ld_evict_first(reinterpret_cast<const uint4*>(norm_args.y_bf16 + output_offset)),
@@ -388,14 +414,15 @@ CUTLASS_DEVICE void run_shifted_norm_task(const Workspace<kNumSplits>& workspace
         if (has_prefetch)
             next_pack = prefetch_pack;
     }
+    trace(24, task_idx);
 }
 
 template <uint32_t kHidden, uint32_t kNumSMs, uint32_t kNumRegisters, bool kStoreBF16, bool kStoreFP8,
-          uint32_t SF_BLOCK_M, uint32_t kNumSplits, typename Storage>
+          uint32_t SF_BLOCK_M, uint32_t kNumSplits, typename Storage, typename Trace = NoMixTrace>
 CUTLASS_DEVICE void run_shifted_norm_worker(Storage& smem, const Workspace<kNumSplits>& workspace,
                                             uint64_t* gmem_split_barriers,
                                             const NormArgs& norm_args,
-                                            const uint32_t& lane_idx) {
+                                            const uint32_t& lane_idx, const Trace& trace = {}) {
     constexpr uint32_t kNumTasksPerGridWave = kNumSMs * kNumWarpsPerWG;
     constexpr uint32_t kNumHiddenPacks = kHidden / kHiddenPerNormPack;
     const uint32_t num_token_pairs = math::ceil_div(norm_args.num_tokens, kNumTokensPerShiftedNormTask);
@@ -422,7 +449,7 @@ CUTLASS_DEVICE void run_shifted_norm_worker(Storage& smem, const Workspace<kNumS
         if (task_idx >= num_tasks)
             return;
         run_shifted_norm_task<kHidden, kStoreBF16, kStoreFP8, SF_BLOCK_M>(
-            workspace, gmem_split_barriers, norm_args, task_idx, num_partitions, lane_idx);
+            workspace, gmem_split_barriers, norm_args, task_idx, num_partitions, lane_idx, trace);
     }
 }
 

@@ -23,8 +23,12 @@ struct SharedStorage {
     // Post workers own independent partials reduced before the Mix/Norm barrier arrivals.
     alignas(kSwizzleMode) float hc_norm_sqr_sums[2][BLOCK_M];
     alignas(kSwizzleMode) float x1_sqr_sums[2][BLOCK_M];
-    // Fused Normal workers use dedicated scratch instead of aliasing Shifted statistics.
-    alignas(kSwizzleMode) float normal_scratch[BLOCK_M];
+    // Normal workers and shifted decode Mix are mutually exclusive. The larger
+    // view fits the padding before A, keeping the total shared allocation fixed.
+    union {
+        alignas(kSwizzleMode) float normal_scratch[BLOCK_M];
+        alignas(kSwizzleMode) float mix_scratch[kNumWarpsPerWG][32];
+    };
 
     // Four TF32 A atoms, each in a WGMMA-compatible 32-byte swizzle.
     alignas(1024) float a[kNumAStages][kNumRoutes][BLOCK_M * 8];

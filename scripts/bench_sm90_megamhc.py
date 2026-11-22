@@ -32,7 +32,10 @@ import deep_gemm
 
 TRACE_SLOTS = 4096
 EVENTS = {1: (2, "role"), 3: (4, "projection task"), 5: (6, "wait"),
-          7: (8, "Post"), 9: (10, "WGMMA completion gate")}
+          7: (8, "Post"), 9: (10, "WGMMA completion gate"),
+          11: (12, "Mix dependency wait"), 13: (14, "Mix partial reduction"),
+          15: (16, "Mix affine + Sinkhorn"), 17: (18, "Mix worker join"),
+          21: (22, "Norm dependency wait"), 23: (24, "Norm compute + store")}
 
 
 def revision(path):
@@ -153,7 +156,7 @@ def capture_profile(run, args, tokens):
         raise ValueError("--kernel-profile-cta outside grid")
     minimum = host[:, :, 1:, 1]
     origin = minimum[minimum > 0].min().item()
-    events, totals = [], {}
+    events, totals, iterations = [], {}, []
     ctas = range(sms) if args.kernel_profile_cta is None else [args.kernel_profile_cta]
     for cta in ctas:
         for warp in range(24):
@@ -163,16 +166,28 @@ def capture_profile(run, args, tokens):
             stack = {}
             for value, timestamp in host[cta, warp, 1:1 + min(TRACE_SLOTS, counts[cta, warp].item())].tolist():
                 event, aux = value >> 56, value & ((1 << 56) - 1)
+                if event == 19:
+                    item = dict(token=aux >> 32, iterations=aux & 0xffffffff, cta=cta, warp=warp)
+                    iterations.append(item)
+                    events.append(dict(name="Sinkhorn iterations", cat=role, ph="i", s="t",
+                                       pid=cta, tid=warp, ts=(timestamp - origin) / 1000, args=item))
+                    continue
                 if event in EVENTS:
                     stack[EVENTS[event][0]] = (timestamp, EVENTS[event][1], aux)
                 elif event in stack:
                     start, label, detail = stack.pop(event)
+                    if label == "wait":
+                        if role.startswith("Post"):
+                            label = "Post IO wait" if detail & 0x10000 else "Post A wait"
+                        elif role == "WGMMA":
+                            label = "Fn wait" if detail & 0x10000 else "A wait"
                     duration = (timestamp - start) / 1000
                     events.append(dict(name=label, cat=role, ph="X", pid=cta, tid=warp,
                                        ts=(start - origin) / 1000, dur=duration, args={"aux": detail}))
                     key = f"{role}:{label}"
                     totals[key] = totals.get(key, 0) + duration
     metadata = dict(tokens=tokens, grid=sms, threads=768, slots=TRACE_SLOTS,
+                    trace_schema=2, sinkhorn_iterations=iterations,
                     attempted_events=counts.sum().item(),
                     dropped_events=(counts - TRACE_SLOTS).clamp_min(0).sum().item(),
                     sum_warp_intervals_us=totals,
