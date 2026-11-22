@@ -1,0 +1,64 @@
+[
+  {
+    "key": "baseline",
+    "label": "SM90 MegaMHC V1",
+    "parent": null,
+    "prefill_splits": 16,
+    "decode_splits": 40,
+    "extension_sha256": "2d66c09f42c9386483e2ec82b0ae7c72e0557eb769d37e21725a6fe1af0845e7",
+    "headers_sha256": {
+      "impls/sm90_mega_mhc.cuh": "9e7734718068f44c3be99ca1587d797c6cc9d2553a927d8079b6e3cee31ff50d",
+      "epilogue/sm100_mega_mhc.cuh": "dcaba52bfa4f00767277cee2c8cbdf6ea699b485914338e9456310bfcfacffa8",
+      "layout/mega_mhc.cuh": "e044a60196bb8cbb61fdce2362a904c83f03b5db407afcdaf80b8ea3f32dcac6",
+      "layout/sm90_mega_mhc.cuh": "34c2bcb9004879cee9b556eae03b77bc58baf28543f883b4bdc7472be93daa3e",
+      "scheduler/mega_mhc.cuh": "e5295788c70140f337dd7621bd845f0952fe0e8eaf9fc42f38f59982c86ea56b"
+    }
+  },
+  {
+    "key": "prefill_opt1",
+    "label": "Prefill opt1: split4",
+    "parent": "baseline",
+    "prefill_splits": 4,
+    "decode_splits": 40,
+    "extension_sha256": "df048dbf0f6044f426d2c3782ca18e50fd7af3367f41d4ae4c5cca86895994a5",
+    "headers_sha256": {
+      "impls/sm90_mega_mhc.cuh": "9e7734718068f44c3be99ca1587d797c6cc9d2553a927d8079b6e3cee31ff50d",
+      "epilogue/sm100_mega_mhc.cuh": "dcaba52bfa4f00767277cee2c8cbdf6ea699b485914338e9456310bfcfacffa8",
+      "layout/mega_mhc.cuh": "e044a60196bb8cbb61fdce2362a904c83f03b5db407afcdaf80b8ea3f32dcac6",
+      "layout/sm90_mega_mhc.cuh": "34c2bcb9004879cee9b556eae03b77bc58baf28543f883b4bdc7472be93daa3e",
+      "scheduler/mega_mhc.cuh": "e5295788c70140f337dd7621bd845f0952fe0e8eaf9fc42f38f59982c86ea56b"
+    }
+  },
+  {
+    "key": "decode_opt1",
+    "label": "Decode opt1: cooperative Mix",
+    "parent": "prefill_opt1",
+    "prefill_splits": 4,
+    "decode_splits": 40,
+    "extension_sha256": "df048dbf0f6044f426d2c3782ca18e50fd7af3367f41d4ae4c5cca86895994a5",
+    "headers_sha256": {
+      "impls/sm90_mega_mhc.cuh": "85a766e88831551550f6f1b40f2d2caafa45e3fcb0b3124c84e5ac3a5a700570",
+      "epilogue/sm100_mega_mhc.cuh": "dcaba52bfa4f00767277cee2c8cbdf6ea699b485914338e9456310bfcfacffa8",
+      "epilogue/sm90_mega_mhc.cuh": "df622b6b84233db91fcc16200a64f359550e10cdba89d6473144df10f605a10f",
+      "layout/mega_mhc.cuh": "e044a60196bb8cbb61fdce2362a904c83f03b5db407afcdaf80b8ea3f32dcac6",
+      "layout/sm90_mega_mhc.cuh": "b60a3d7d555b9e18d7f56291f50a2fba1cb7cf5f491b3127603b611027184a51",
+      "scheduler/mega_mhc.cuh": "e5295788c70140f337dd7621bd845f0952fe0e8eaf9fc42f38f59982c86ea56b"
+    }
+  },
+  {
+    "key": "decode_opt2",
+    "label": "Decode opt2: split80",
+    "parent": "decode_opt1",
+    "prefill_splits": 4,
+    "decode_splits": 80,
+    "extension_sha256": "4cb61fd1659eb09048dc0192e9acf43b9a023f67adcf975419a2bdad247be866",
+    "headers_sha256": {
+      "impls/sm90_mega_mhc.cuh": "85a766e88831551550f6f1b40f2d2caafa45e3fcb0b3124c84e5ac3a5a700570",
+      "epilogue/sm100_mega_mhc.cuh": "dcaba52bfa4f00767277cee2c8cbdf6ea699b485914338e9456310bfcfacffa8",
+      "epilogue/sm90_mega_mhc.cuh": "df622b6b84233db91fcc16200a64f359550e10cdba89d6473144df10f605a10f",
+      "layout/mega_mhc.cuh": "79aa13cc06e3c299b3f95c773ccc8579b1577c9e51e9ef4ea6df5e86b239d0fb",
+      "layout/sm90_mega_mhc.cuh": "b60a3d7d555b9e18d7f56291f50a2fba1cb7cf5f491b3127603b611027184a51",
+      "scheduler/mega_mhc.cuh": "6606843654ae0614b916e53476dad37a961795f1c6069247134fa26ab5ad54e7"
+    }
+  }
+]

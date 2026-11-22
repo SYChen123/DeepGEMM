@@ -1,0 +1,16 @@
+START final-timing-00-baseline
+DONE final-timing-00-baseline 0
+START final-timing-01-prefill_opt1
+DONE final-timing-01-prefill_opt1 0
+START final-timing-02-decode_opt1
+DONE final-timing-02-decode_opt1 0
+START final-timing-03-decode_opt2
+DONE final-timing-03-decode_opt2 0
+START final-timing-04-decode_opt2
+DONE final-timing-04-decode_opt2 0
+START final-timing-05-decode_opt1
+DONE final-timing-05-decode_opt1 0
+START final-timing-06-prefill_opt1
+DONE final-timing-06-prefill_opt1 0
+START final-timing-07-baseline
+DONE final-timing-07-baseline 0

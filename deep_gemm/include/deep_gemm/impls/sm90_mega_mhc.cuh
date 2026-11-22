@@ -401,6 +401,8 @@ CUTLASS_GLOBAL void __launch_bounds__(kNumThreads, 1)
 
                 __syncwarp();
                 if (cute::elect_one_sync()) {
+                    //proxy fence，保证普通访存和异步硬件访问之间的顺序，普通CUDA shared load/store是generic proxy，TMA/WGMMA是异步访问是async proxy。
+                    //fence_view_async_shared就是要保证从这个fence以后，tma/wgmma才能通过异步路径access对应的buffer
                     cutlass::arch::fence_view_async_shared();
                     smem.empty_coeff_barriers[coeff_stage_idx].arrive();
                 }
@@ -565,7 +567,7 @@ CUTLASS_GLOBAL void __launch_bounds__(kNumThreads, 1)
                     trace(6, a_stage_idx);
                     #pragma unroll
                     for (auto& v: accum) ptx::warpgroup_fence_operand(v);
-                    ptx::warpgroup_arrive();
+                    ptx::warpgroup_arrive(); // 硬件寄存器fence，此前的普通寄存器访问和此后的mma寄存器访问，添加fence
                     #pragma unroll
                     for (uint32_t r = 0; r < kNumRoutes; ++r) {
                         auto a_desc = mma::sm90::make_gmma_desc<cute::UMMA::Major::K, BLOCK_M, UMMA_K, 32>(
@@ -574,10 +576,10 @@ CUTLASS_GLOBAL void __launch_bounds__(kNumThreads, 1)
                             smem.fn[fn_stage_idx][atom / 4][r] + (atom % 4) * UMMA_K, 1);
                         WGMMA::wgmma(a_desc, b_desc, accum, kb > 0 || atom > 0 || r > 0);
                     }
-                    ptx::warpgroup_commit_batch();
+                    ptx::warpgroup_commit_batch(); // 四条MMA组成一个group
                     trace(9, atom);
                     // Both shared operands stay live until all four warps drain WGMMA.
-                    ptx::warpgroup_wait<0>();
+                    ptx::warpgroup_wait<0>(); // 等待这四个MMA完成
                     trace(10, atom);
                     #pragma unroll
                     for (auto& v: accum) ptx::warpgroup_fence_operand(v);

@@ -1,0 +1,21 @@
+{
+  "index": "/Users/chensiyuan/LLMInfer/profile/ncu/sm90-megamhc-stages/index.html",
+  "html_sha256": "86994ed8238fb1f3a371bbc84af83c88ee0ad759f90aa55d12710f60a1cebb43",
+  "generator": "scripts/compare_sm90_mhc_profiles.py",
+  "generator_sha256": "2055ba75a44ffbb774ea07274be4f8194c13f346c95470192997a740322825eb",
+  "stage_order": [
+    "00_baseline_v1",
+    "01_prefill_opt1_split4",
+    "02_decode_opt1_parallel_mix",
+    "03_decode_opt2_split80"
+  ],
+  "verified_ncu_links": 8,
+  "computer_use_checks": [
+    "32/4096 shape selection",
+    "before/after stage selection",
+    "critical/CTA0 selection",
+    "1380px desktop and 390px narrow viewport",
+    "historical report update rendered"
+  ],
+  "implementation_commit": "a621931"
+}

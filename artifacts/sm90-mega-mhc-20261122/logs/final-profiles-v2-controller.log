@@ -1,0 +1,31 @@
+REUSE_VALID_TIMELINE baseline 4096
+START profiles-v2-ncu-baseline-4096
+DONE profiles-v2-ncu-baseline-4096 0
+START profiles-v2-timeline-baseline-32
+DONE profiles-v2-timeline-baseline-32 0
+START profiles-v2-ncu-baseline-32
+DONE profiles-v2-ncu-baseline-32 0
+START profiles-v2-timeline-prefill_opt1-4096
+DONE profiles-v2-timeline-prefill_opt1-4096 0
+START profiles-v2-ncu-prefill_opt1-4096
+DONE profiles-v2-ncu-prefill_opt1-4096 0
+START profiles-v2-timeline-prefill_opt1-32
+DONE profiles-v2-timeline-prefill_opt1-32 0
+START profiles-v2-ncu-prefill_opt1-32
+DONE profiles-v2-ncu-prefill_opt1-32 0
+START profiles-v2-timeline-decode_opt1-4096
+DONE profiles-v2-timeline-decode_opt1-4096 0
+START profiles-v2-ncu-decode_opt1-4096
+DONE profiles-v2-ncu-decode_opt1-4096 0
+START profiles-v2-timeline-decode_opt1-32
+DONE profiles-v2-timeline-decode_opt1-32 0
+START profiles-v2-ncu-decode_opt1-32
+DONE profiles-v2-ncu-decode_opt1-32 0
+START profiles-v2-timeline-decode_opt2-4096
+DONE profiles-v2-timeline-decode_opt2-4096 0
+START profiles-v2-ncu-decode_opt2-4096
+DONE profiles-v2-ncu-decode_opt2-4096 0
+START profiles-v2-timeline-decode_opt2-32
+DONE profiles-v2-timeline-decode_opt2-32 0
+START profiles-v2-ncu-decode_opt2-32
+DONE profiles-v2-ncu-decode_opt2-32 0

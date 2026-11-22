@@ -1,0 +1,11 @@
+{
+  "csrc/apis/mega_mhc.hpp": "0aba1ab4186cf2c72cb7cecb5bd7cd9e20d1ac883a31a510c1d0fd25c5e52d34",
+  "deep_gemm/include/deep_gemm/layout/mega_mhc.cuh": "79aa13cc06e3c299b3f95c773ccc8579b1577c9e51e9ef4ea6df5e86b239d0fb",
+  "deep_gemm/include/deep_gemm/layout/sm90_mega_mhc.cuh": "b60a3d7d555b9e18d7f56291f50a2fba1cb7cf5f491b3127603b611027184a51",
+  "deep_gemm/include/deep_gemm/scheduler/mega_mhc.cuh": "6606843654ae0614b916e53476dad37a961795f1c6069247134fa26ab5ad54e7",
+  "deep_gemm/include/deep_gemm/epilogue/sm100_mega_mhc.cuh": "dcaba52bfa4f00767277cee2c8cbdf6ea699b485914338e9456310bfcfacffa8",
+  "deep_gemm/include/deep_gemm/epilogue/sm90_mega_mhc.cuh": "df622b6b84233db91fcc16200a64f359550e10cdba89d6473144df10f605a10f",
+  "deep_gemm/include/deep_gemm/impls/sm90_mega_mhc.cuh": "85a766e88831551550f6f1b40f2d2caafa45e3fcb0b3124c84e5ac3a5a700570",
+  "scripts/bench_sm90_megamhc.py": "c5b89f656049ec51b0e655babc7a4d6421fa6bf75c4c62d1cc822ffe967fc45d",
+  "tests/test_sm90_mega_mhc.py": "8caa44cf9b69f29d0c75c7ba4f950edc27b6cc284c575e7422572bd5f02bd466"
+}

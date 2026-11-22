@@ -1,9 +1,9 @@
 """Single-GPU DSv4.1 shifted Mega mHC correctness, latency and kernel timeline.
 
 Build with scripts/build_sm90_mhc_dev.py first. Example (physical GPU 1):
-  CUDA_VISIBLE_DEVICES=1 PYTHONPATH=$PWD/build-sm90-mhc \
-    /path/to/csy/bin/python scripts/bench_sm90_megamhc.py \
-    --model /path/to/DeepSeek-V4.1-Flash --tokens 4096 32 --output results.json
+  CUDA_VISIBLE_DEVICES=1 python /mnt/a6intlalipayplus-idt2-aidc/common/alipayplus/infer/xiaoyuan/code/DeepGEMM/scripts/bench_sm90_megamhc.py \
+    --model /mnt/a6intlalipayplus-a6/common/models/DeepSeek-V4.1-Flash/ \
+    --tokens 4096 32 --output results.json
 
 Collect %globaltimer traces in a SEPARATE launch after uninstrumented timing:
   CUDA_VISIBLE_DEVICES=1 PYTHONPATH=$PWD/build-sm90-mhc \
@@ -235,9 +235,14 @@ def main():
     norm = mhc.RMSNorm(hidden, eps=rms_eps, weight_dtype=weight.dtype).to(weight.device)
     norm.weight.copy_(weight)
     hc = mhc.HcSubLayer(cfg, fn, scale, base, norm, bf16_parts=split_bf16_hc_weight(fn))
+    # A namespace directory can shadow the editable package (__file__=None).
+    # Attribute the benchmark to the actual imported implementation instead.
+    sglang_mhc_path = Path(mhc.__file__).resolve()
     metadata = dict(device=torch.cuda.get_device_name(), sms=deep_gemm.get_num_sms(),
                     torch=torch.__version__, cuda=torch.version.cuda, deep_gemm=deep_gemm.__file__,
-                    sglang=sglang.__file__, sglang_revision=revision(Path(sglang.__file__).parents[2]),
+                    sglang=getattr(sglang, "__file__", None), sglang_mhc=str(sglang_mhc_path),
+                    sglang_revision=revision(sglang_mhc_path.parent),
+                    sglang_mhc_sha256=hashlib.sha256(sglang_mhc_path.read_bytes()).hexdigest(),
                     checkpoint=str(args.model), weight_sha256=hashes, layer=args.layer,
                     sublayer=args.sublayer, hidden=hidden, hc=4, sinkhorn_iters=iters,
                     hc_eps=eps, rms_eps=rms_eps, seed=20261118,

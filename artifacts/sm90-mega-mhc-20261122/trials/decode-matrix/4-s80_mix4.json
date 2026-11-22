@@ -1,0 +1,94 @@
+{
+  "metadata": {
+    "device": "NVIDIA H200",
+    "physical_sms": 132,
+    "package": "/mnt/a6intlalipayplus-idt2-aidc/common/alipayplus/infer/xiaoyuan/experiments/sm90-megamhc-decode-20261122/variants/s80_mix4/deep_gemm/__init__.py",
+    "kernel_sha256": "841077ee4225daaf9ec567f0e06270b6f0262e14740dbbf1b0d7c56c43d5aa38",
+    "dependencies_sha256": {
+      "impls/sm90_mega_mhc.cuh": "841077ee4225daaf9ec567f0e06270b6f0262e14740dbbf1b0d7c56c43d5aa38",
+      "scheduler/mega_mhc.cuh": "6606843654ae0614b916e53476dad37a961795f1c6069247134fa26ab5ad54e7",
+      "ptx/ld_st.cuh": "5a5531b91de421eb72be8ff73d163c374963e73fcbb31293d8edfbc406201322",
+      "layout/mega_mhc.cuh": "79aa13cc06e3c299b3f95c773ccc8579b1577c9e51e9ef4ea6df5e86b239d0fb",
+      "layout/sm90_mega_mhc.cuh": "ed458004d1a30a7a4f03128f3dfdf52a7df283bafd01d53fa6a8644bd2be9583",
+      "epilogue/sm100_mega_mhc.cuh": "18660d51984a23369f98c5e56dea3bb1570b88e0592b481deef50902c159445c",
+      "epilogue/sm90_mega_mhc.cuh": "3af68f68f11f240fe5a6e44efbc02837ef04cf246394a3710df22359791abf72"
+    },
+    "repetitions": 128,
+    "rounds": 32,
+    "pdl": false
+  },
+  "cases": [
+    {
+      "tokens": 32,
+      "fixture_sha256": "17eb168b68ccbdda90c1a83d40dd5ba75725a607b743fc0af83cf81cf627c920",
+      "configs": {
+        "132": {
+          "median_us": 11.291749775409698,
+          "min_us": 11.271500028669834,
+          "max_us": 11.328250169754028,
+          "samples_us": [
+            11.319500394165516,
+            11.296999640762806,
+            11.271500028669834,
+            11.284000240266323,
+            11.293499730527401,
+            11.284500360488892,
+            11.29399985074997,
+            11.295749805867672,
+            11.300000362098217,
+            11.294749565422535,
+            11.29124965518713,
+            11.281000450253487,
+            11.29624992609024,
+            11.291500180959702,
+            11.291749775409698,
+            11.287500150501728,
+            11.291749775409698,
+            11.293250136077404,
+            11.291500180959702,
+            11.292999610304832,
+            11.287749744951725,
+            11.287500150501728,
+            11.284000240266323,
+            11.295249685645103,
+            11.281000450253487,
+            11.294749565422535,
+            11.294499970972538,
+            11.28424983471632,
+            11.28700003027916,
+            11.328250169754028,
+            11.288999579846859,
+            11.314500123262405
+          ],
+          "accuracy": {
+            "new_comb_res_mix": {
+              "max_abs": 1.1920928955078125e-07,
+              "relative_l2": 2.21155787016869e-08,
+              "diff": 2.445493968308512e-16
+            },
+            "new_post_mix": {
+              "max_abs": 1.1920928955078125e-07,
+              "relative_l2": 5.1440412818237746e-08,
+              "diff": 1.3230579461938102e-15
+            },
+            "new_prev_mix": {
+              "max_abs": 1.1920928955078125e-07,
+              "relative_l2": 3.436752038510349e-08,
+              "diff": 5.90563282226519e-16
+            },
+            "new_residual": {
+              "max_abs": 0.0,
+              "relative_l2": 0.0,
+              "diff": 0.0
+            },
+            "y_bf16": {
+              "max_abs": 0.0,
+              "relative_l2": 0.0,
+              "diff": 0.0
+            }
+          }
+        }
+      }
+    }
+  ]
+}

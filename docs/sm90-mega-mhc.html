@@ -16,9 +16,10 @@
   @media(max-width:800px){main{padding:24px 16px}.cards{grid-template-columns:1fr}h1{font-size:29px}figure{overflow:auto}figure img{min-width:950px}}
 </style>
 <main>
-  <span class="tag">2026-11-18 · 已归档 · V1 实测 / 候选未测</span>
+  <span class="tag">2026-11-18 · V1 原始架构与实测归档</span>
   <h1>SM90 Mega mHC：融合边界与算子流水</h1>
   <p class="muted">从 SM100 的 persistent kernel 移植 Post、投影、Mix 与 RMSNorm；图中实线表示数据移动，虚线表示归约统计。完整代码分析与社区调查见 <a href="sm90-mega-mhc.md">设计报告</a>。</p>
+  <p class="note">2026-11-22：默认 decode 已采用四 warp Mix + 80 splits，32 tokens 从同轮 V1 的 16.388 降至 11.790 µs（−28.06%）；prefill 约 147 µs。见 <a href="experimental/sm90-mega-mhc-decode-20261122.md">最新优化、回归与累计 profile 索引</a>。双 outstanding 后续复测收益很小，未采用；本页下方保留首轮 V1 的图表与当时的候选状态。</p>
   <div class="cards">
     <div class="card"><b>保留数值边界</b><p>Post 用 FP32 FMA，R′ 舍入为 BF16；collapse 后 X1 再舍入为 BF16，再计算 RMSNorm。</p></div>
     <div class="card"><b>Shifted 两条分支</b><p>当前 Norm 使用 carried pre，因此不依赖下一组 Mix 系数；Mix 与 Norm 通过独立 split barrier 推进。</p></div>

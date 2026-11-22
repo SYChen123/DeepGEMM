@@ -1,0 +1,261 @@
+{
+  "note": "Local reduction of NCU wide CSV; original archive and manifest are unchanged.",
+  "kernels": [
+    {
+      "file": "profiles/baseline/32/kernel.csv",
+      "kernel": "void sm90_mega_mhc_impl<5120, 40, 132, 1, 1, 0, 0, 0>(CUtensorMap_st, CUtensorMap_st, CUtensorMap_st, CUtensorMap_st, CUtensorMap_st, CUtensorMap_st, CUtensorMap_st, CUtensorMap_st, MixArgs, NormArgs, void *, unsigned long *, void *)",
+      "block": "(768, 1, 1)",
+      "grid": "(132, 1, 1)",
+      "metrics": {
+        "launch__registers_per_thread": {
+          "value": "80",
+          "unit": "register/thread"
+        },
+        "launch__shared_mem_per_block_dynamic": {
+          "value": "220.160000",
+          "unit": "Kbyte/block"
+        },
+        "launch__block_size": {
+          "value": "768",
+          "unit": ""
+        },
+        "launch__grid_size": {
+          "value": "132",
+          "unit": ""
+        },
+        "l1tex__t_sectors_pipe_lsu_mem_local_op_ld.sum": {
+          "value": "0",
+          "unit": "sector"
+        },
+        "l1tex__t_sectors_pipe_lsu_mem_local_op_st.sum": {
+          "value": "0",
+          "unit": "sector"
+        }
+      }
+    },
+    {
+      "file": "profiles/baseline/4096/kernel.csv",
+      "kernel": "void sm90_mega_mhc_impl<5120, 16, 132, 1, 1, 0, 0, 0>(CUtensorMap_st, CUtensorMap_st, CUtensorMap_st, CUtensorMap_st, CUtensorMap_st, CUtensorMap_st, CUtensorMap_st, CUtensorMap_st, MixArgs, NormArgs, void *, unsigned long *, void *)",
+      "block": "(768, 1, 1)",
+      "grid": "(132, 1, 1)",
+      "metrics": {
+        "launch__registers_per_thread": {
+          "value": "80",
+          "unit": "register/thread"
+        },
+        "launch__shared_mem_per_block_dynamic": {
+          "value": "220.160000",
+          "unit": "Kbyte/block"
+        },
+        "launch__block_size": {
+          "value": "768",
+          "unit": ""
+        },
+        "launch__grid_size": {
+          "value": "132",
+          "unit": ""
+        },
+        "l1tex__t_sectors_pipe_lsu_mem_local_op_ld.sum": {
+          "value": "0",
+          "unit": "sector"
+        },
+        "l1tex__t_sectors_pipe_lsu_mem_local_op_st.sum": {
+          "value": "0",
+          "unit": "sector"
+        }
+      }
+    },
+    {
+      "file": "profiles/decode_opt1/32/kernel.csv",
+      "kernel": "void sm90_mega_mhc_impl<5120, 40, 132, 1, 1, 0, 0, 0>(CUtensorMap_st, CUtensorMap_st, CUtensorMap_st, CUtensorMap_st, CUtensorMap_st, CUtensorMap_st, CUtensorMap_st, CUtensorMap_st, MixArgs, NormArgs, void *, unsigned long *, void *)",
+      "block": "(768, 1, 1)",
+      "grid": "(132, 1, 1)",
+      "metrics": {
+        "launch__registers_per_thread": {
+          "value": "80",
+          "unit": "register/thread"
+        },
+        "launch__shared_mem_per_block_dynamic": {
+          "value": "220.160000",
+          "unit": "Kbyte/block"
+        },
+        "launch__block_size": {
+          "value": "768",
+          "unit": ""
+        },
+        "launch__grid_size": {
+          "value": "132",
+          "unit": ""
+        },
+        "l1tex__t_sectors_pipe_lsu_mem_local_op_ld.sum": {
+          "value": "0",
+          "unit": "sector"
+        },
+        "l1tex__t_sectors_pipe_lsu_mem_local_op_st.sum": {
+          "value": "0",
+          "unit": "sector"
+        }
+      }
+    },
+    {
+      "file": "profiles/decode_opt1/4096/kernel.csv",
+      "kernel": "void sm90_mega_mhc_impl<5120, 4, 132, 1, 1, 0, 0, 0>(CUtensorMap_st, CUtensorMap_st, CUtensorMap_st, CUtensorMap_st, CUtensorMap_st, CUtensorMap_st, CUtensorMap_st, CUtensorMap_st, MixArgs, NormArgs, void *, unsigned long *, void *)",
+      "block": "(768, 1, 1)",
+      "grid": "(132, 1, 1)",
+      "metrics": {
+        "launch__registers_per_thread": {
+          "value": "80",
+          "unit": "register/thread"
+        },
+        "launch__shared_mem_per_block_dynamic": {
+          "value": "220.160000",
+          "unit": "Kbyte/block"
+        },
+        "launch__block_size": {
+          "value": "768",
+          "unit": ""
+        },
+        "launch__grid_size": {
+          "value": "132",
+          "unit": ""
+        },
+        "l1tex__t_sectors_pipe_lsu_mem_local_op_ld.sum": {
+          "value": "0",
+          "unit": "sector"
+        },
+        "l1tex__t_sectors_pipe_lsu_mem_local_op_st.sum": {
+          "value": "0",
+          "unit": "sector"
+        }
+      }
+    },
+    {
+      "file": "profiles/decode_opt2/32/kernel.csv",
+      "kernel": "void sm90_mega_mhc_impl<5120, 80, 132, 1, 1, 0, 0, 0>(CUtensorMap_st, CUtensorMap_st, CUtensorMap_st, CUtensorMap_st, CUtensorMap_st, CUtensorMap_st, CUtensorMap_st, CUtensorMap_st, MixArgs, NormArgs, void *, unsigned long *, void *)",
+      "block": "(768, 1, 1)",
+      "grid": "(132, 1, 1)",
+      "metrics": {
+        "launch__registers_per_thread": {
+          "value": "80",
+          "unit": "register/thread"
+        },
+        "launch__shared_mem_per_block_dynamic": {
+          "value": "220.160000",
+          "unit": "Kbyte/block"
+        },
+        "launch__block_size": {
+          "value": "768",
+          "unit": ""
+        },
+        "launch__grid_size": {
+          "value": "132",
+          "unit": ""
+        },
+        "l1tex__t_sectors_pipe_lsu_mem_local_op_ld.sum": {
+          "value": "0",
+          "unit": "sector"
+        },
+        "l1tex__t_sectors_pipe_lsu_mem_local_op_st.sum": {
+          "value": "0",
+          "unit": "sector"
+        }
+      }
+    },
+    {
+      "file": "profiles/decode_opt2/4096/kernel.csv",
+      "kernel": "void sm90_mega_mhc_impl<5120, 4, 132, 1, 1, 0, 0, 0>(CUtensorMap_st, CUtensorMap_st, CUtensorMap_st, CUtensorMap_st, CUtensorMap_st, CUtensorMap_st, CUtensorMap_st, CUtensorMap_st, MixArgs, NormArgs, void *, unsigned long *, void *)",
+      "block": "(768, 1, 1)",
+      "grid": "(132, 1, 1)",
+      "metrics": {
+        "launch__registers_per_thread": {
+          "value": "80",
+          "unit": "register/thread"
+        },
+        "launch__shared_mem_per_block_dynamic": {
+          "value": "220.160000",
+          "unit": "Kbyte/block"
+        },
+        "launch__block_size": {
+          "value": "768",
+          "unit": ""
+        },
+        "launch__grid_size": {
+          "value": "132",
+          "unit": ""
+        },
+        "l1tex__t_sectors_pipe_lsu_mem_local_op_ld.sum": {
+          "value": "0",
+          "unit": "sector"
+        },
+        "l1tex__t_sectors_pipe_lsu_mem_local_op_st.sum": {
+          "value": "0",
+          "unit": "sector"
+        }
+      }
+    },
+    {
+      "file": "profiles/prefill_opt1/32/kernel.csv",
+      "kernel": "void sm90_mega_mhc_impl<5120, 40, 132, 1, 1, 0, 0, 0>(CUtensorMap_st, CUtensorMap_st, CUtensorMap_st, CUtensorMap_st, CUtensorMap_st, CUtensorMap_st, CUtensorMap_st, CUtensorMap_st, MixArgs, NormArgs, void *, unsigned long *, void *)",
+      "block": "(768, 1, 1)",
+      "grid": "(132, 1, 1)",
+      "metrics": {
+        "launch__registers_per_thread": {
+          "value": "80",
+          "unit": "register/thread"
+        },
+        "launch__shared_mem_per_block_dynamic": {
+          "value": "220.160000",
+          "unit": "Kbyte/block"
+        },
+        "launch__block_size": {
+          "value": "768",
+          "unit": ""
+        },
+        "launch__grid_size": {
+          "value": "132",
+          "unit": ""
+        },
+        "l1tex__t_sectors_pipe_lsu_mem_local_op_ld.sum": {
+          "value": "0",
+          "unit": "sector"
+        },
+        "l1tex__t_sectors_pipe_lsu_mem_local_op_st.sum": {
+          "value": "0",
+          "unit": "sector"
+        }
+      }
+    },
+    {
+      "file": "profiles/prefill_opt1/4096/kernel.csv",
+      "kernel": "void sm90_mega_mhc_impl<5120, 4, 132, 1, 1, 0, 0, 0>(CUtensorMap_st, CUtensorMap_st, CUtensorMap_st, CUtensorMap_st, CUtensorMap_st, CUtensorMap_st, CUtensorMap_st, CUtensorMap_st, MixArgs, NormArgs, void *, unsigned long *, void *)",
+      "block": "(768, 1, 1)",
+      "grid": "(132, 1, 1)",
+      "metrics": {
+        "launch__registers_per_thread": {
+          "value": "80",
+          "unit": "register/thread"
+        },
+        "launch__shared_mem_per_block_dynamic": {
+          "value": "220.160000",
+          "unit": "Kbyte/block"
+        },
+        "launch__block_size": {
+          "value": "768",
+          "unit": ""
+        },
+        "launch__grid_size": {
+          "value": "132",
+          "unit": ""
+        },
+        "l1tex__t_sectors_pipe_lsu_mem_local_op_ld.sum": {
+          "value": "0",
+          "unit": "sector"
+        },
+        "l1tex__t_sectors_pipe_lsu_mem_local_op_st.sum": {
+          "value": "0",
+          "unit": "sector"
+        }
+      }
+    }
+  ]
+}

@@ -2,9 +2,11 @@
 
 调查日期：2026-11-18。开发基线 `4f9479c`（`codex/0.2.2-sm90-megamoe-pr473`），开发分支 `codex/sm90-megamhc`，实现 commit `3a7c6a1`。
 
+2026-11-22 更新：32-token shifted decode 采用四 warp 协作 Mix 与配套 80-split 调度，同轮 V1 **16.388→11.790 µs，降低 28.06%**，对 SGLang 约 **1.487×**；prefill 保持约 147 µs。设计、负收益实验、统一阶段 profile 与回归见 [decode 优化记录](experimental/sm90-mega-mhc-decode-20261122.md)。
+
 2026-11-21 更新：默认采用 SM90 的较少 split 启发式，4096-token boundary 从同轮 V1 的 152.34 µs 降至 147.11 µs（降低 3.43%，对 SGLang 约 1.394×）。decode 路径保持原设计。双 outstanding 已复测，prefill 仅改善 0.40%，未采用。实验、负收益原因与修正过程见 [优化记录](experimental/sm90-mega-mhc-optimization-20261121.md)。
 
-以下表格与延迟图保留 **2026-11-18 首轮 V1** 的独立结果：H200 单卡、真实 V4.1-Flash mHC/Norm 权重和随机激活。默认 device kernel 沿用该快照，当前 host split 启发式已更新。
+以下表格、延迟图和原始架构图保留 **2026-11-18 首轮 V1** 的独立结果：H200 单卡、真实 V4.1-Flash mHC/Norm 权重和随机激活。当前默认实现已包含上述两轮更新；小 batch WG4 架构以 11-22 记录为准。
 
 | token/rank | SGLang baseline (µs) | SM90 Mega mHC (µs) | 加速比 | latency 变化 |
 |---:|---:|---:|---:|---:|

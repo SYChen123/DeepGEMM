@@ -1,0 +1,189 @@
+{
+  "status": "complete",
+  "commands": [
+    {
+      "arm": "current",
+      "argv": [
+        "/mnt/a6intlalipayplus-idt2-aidc/common/alipayplus/infer/abing/pack/conda/env/envs/csy/bin/python",
+        "-u",
+        "/mnt/a6intlalipayplus-idt2-aidc/common/alipayplus/infer/xiaoyuan/experiments/sm90-megamhc-decode-20261122/tune_mhc.py",
+        "--fixtures",
+        "/mnt/a6intlalipayplus-idt2-aidc/common/alipayplus/infer/xiaoyuan/experiments/sm90-megamhc-double-20261121/input",
+        "--tokens",
+        "32",
+        "--sms",
+        "132",
+        "--repetitions",
+        "128",
+        "--rounds",
+        "32",
+        "--output",
+        "/mnt/a6intlalipayplus-idt2-aidc/common/alipayplus/infer/xiaoyuan/experiments/sm90-megamhc-decode-20261122/trials/decode-matrix/0-current.json"
+      ],
+      "extension_sha256": "df048dbf0f6044f426d2c3782ca18e50fd7af3367f41d4ae4c5cca86895994a5",
+      "pid": 144383,
+      "returncode": 0
+    },
+    {
+      "arm": "mix4",
+      "argv": [
+        "/mnt/a6intlalipayplus-idt2-aidc/common/alipayplus/infer/abing/pack/conda/env/envs/csy/bin/python",
+        "-u",
+        "/mnt/a6intlalipayplus-idt2-aidc/common/alipayplus/infer/xiaoyuan/experiments/sm90-megamhc-decode-20261122/tune_mhc.py",
+        "--fixtures",
+        "/mnt/a6intlalipayplus-idt2-aidc/common/alipayplus/infer/xiaoyuan/experiments/sm90-megamhc-double-20261121/input",
+        "--tokens",
+        "32",
+        "--sms",
+        "132",
+        "--repetitions",
+        "128",
+        "--rounds",
+        "32",
+        "--output",
+        "/mnt/a6intlalipayplus-idt2-aidc/common/alipayplus/infer/xiaoyuan/experiments/sm90-megamhc-decode-20261122/trials/decode-matrix/1-mix4.json"
+      ],
+      "extension_sha256": "df048dbf0f6044f426d2c3782ca18e50fd7af3367f41d4ae4c5cca86895994a5",
+      "pid": 144525,
+      "returncode": 0
+    },
+    {
+      "arm": "split80",
+      "argv": [
+        "/mnt/a6intlalipayplus-idt2-aidc/common/alipayplus/infer/abing/pack/conda/env/envs/csy/bin/python",
+        "-u",
+        "/mnt/a6intlalipayplus-idt2-aidc/common/alipayplus/infer/xiaoyuan/experiments/sm90-megamhc-decode-20261122/tune_mhc.py",
+        "--fixtures",
+        "/mnt/a6intlalipayplus-idt2-aidc/common/alipayplus/infer/xiaoyuan/experiments/sm90-megamhc-double-20261121/input",
+        "--tokens",
+        "32",
+        "--sms",
+        "132",
+        "--repetitions",
+        "128",
+        "--rounds",
+        "32",
+        "--output",
+        "/mnt/a6intlalipayplus-idt2-aidc/common/alipayplus/infer/xiaoyuan/experiments/sm90-megamhc-decode-20261122/trials/decode-matrix/2-split80.json"
+      ],
+      "extension_sha256": "4f0cd2ce018212ef718dbed95dd11244ed9c7686c3e6df627e19a1c819f2eb6d",
+      "pid": 144698,
+      "returncode": 0
+    },
+    {
+      "arm": "s80_mix4",
+      "argv": [
+        "/mnt/a6intlalipayplus-idt2-aidc/common/alipayplus/infer/abing/pack/conda/env/envs/csy/bin/python",
+        "-u",
+        "/mnt/a6intlalipayplus-idt2-aidc/common/alipayplus/infer/xiaoyuan/experiments/sm90-megamhc-decode-20261122/tune_mhc.py",
+        "--fixtures",
+        "/mnt/a6intlalipayplus-idt2-aidc/common/alipayplus/infer/xiaoyuan/experiments/sm90-megamhc-double-20261121/input",
+        "--tokens",
+        "32",
+        "--sms",
+        "132",
+        "--repetitions",
+        "128",
+        "--rounds",
+        "32",
+        "--output",
+        "/mnt/a6intlalipayplus-idt2-aidc/common/alipayplus/infer/xiaoyuan/experiments/sm90-megamhc-decode-20261122/trials/decode-matrix/3-s80_mix4.json"
+      ],
+      "extension_sha256": "4f0cd2ce018212ef718dbed95dd11244ed9c7686c3e6df627e19a1c819f2eb6d",
+      "pid": 144880,
+      "returncode": 0
+    },
+    {
+      "arm": "s80_mix4",
+      "argv": [
+        "/mnt/a6intlalipayplus-idt2-aidc/common/alipayplus/infer/abing/pack/conda/env/envs/csy/bin/python",
+        "-u",
+        "/mnt/a6intlalipayplus-idt2-aidc/common/alipayplus/infer/xiaoyuan/experiments/sm90-megamhc-decode-20261122/tune_mhc.py",
+        "--fixtures",
+        "/mnt/a6intlalipayplus-idt2-aidc/common/alipayplus/infer/xiaoyuan/experiments/sm90-megamhc-double-20261121/input",
+        "--tokens",
+        "32",
+        "--sms",
+        "132",
+        "--repetitions",
+        "128",
+        "--rounds",
+        "32",
+        "--output",
+        "/mnt/a6intlalipayplus-idt2-aidc/common/alipayplus/infer/xiaoyuan/experiments/sm90-megamhc-decode-20261122/trials/decode-matrix/4-s80_mix4.json"
+      ],
+      "extension_sha256": "4f0cd2ce018212ef718dbed95dd11244ed9c7686c3e6df627e19a1c819f2eb6d",
+      "pid": 145050,
+      "returncode": 0
+    },
+    {
+      "arm": "split80",
+      "argv": [
+        "/mnt/a6intlalipayplus-idt2-aidc/common/alipayplus/infer/abing/pack/conda/env/envs/csy/bin/python",
+        "-u",
+        "/mnt/a6intlalipayplus-idt2-aidc/common/alipayplus/infer/xiaoyuan/experiments/sm90-megamhc-decode-20261122/tune_mhc.py",
+        "--fixtures",
+        "/mnt/a6intlalipayplus-idt2-aidc/common/alipayplus/infer/xiaoyuan/experiments/sm90-megamhc-double-20261121/input",
+        "--tokens",
+        "32",
+        "--sms",
+        "132",
+        "--repetitions",
+        "128",
+        "--rounds",
+        "32",
+        "--output",
+        "/mnt/a6intlalipayplus-idt2-aidc/common/alipayplus/infer/xiaoyuan/experiments/sm90-megamhc-decode-20261122/trials/decode-matrix/5-split80.json"
+      ],
+      "extension_sha256": "4f0cd2ce018212ef718dbed95dd11244ed9c7686c3e6df627e19a1c819f2eb6d",
+      "pid": 145238,
+      "returncode": 0
+    },
+    {
+      "arm": "mix4",
+      "argv": [
+        "/mnt/a6intlalipayplus-idt2-aidc/common/alipayplus/infer/abing/pack/conda/env/envs/csy/bin/python",
+        "-u",
+        "/mnt/a6intlalipayplus-idt2-aidc/common/alipayplus/infer/xiaoyuan/experiments/sm90-megamhc-decode-20261122/tune_mhc.py",
+        "--fixtures",
+        "/mnt/a6intlalipayplus-idt2-aidc/common/alipayplus/infer/xiaoyuan/experiments/sm90-megamhc-double-20261121/input",
+        "--tokens",
+        "32",
+        "--sms",
+        "132",
+        "--repetitions",
+        "128",
+        "--rounds",
+        "32",
+        "--output",
+        "/mnt/a6intlalipayplus-idt2-aidc/common/alipayplus/infer/xiaoyuan/experiments/sm90-megamhc-decode-20261122/trials/decode-matrix/6-mix4.json"
+      ],
+      "extension_sha256": "df048dbf0f6044f426d2c3782ca18e50fd7af3367f41d4ae4c5cca86895994a5",
+      "pid": 145373,
+      "returncode": 0
+    },
+    {
+      "arm": "current",
+      "argv": [
+        "/mnt/a6intlalipayplus-idt2-aidc/common/alipayplus/infer/abing/pack/conda/env/envs/csy/bin/python",
+        "-u",
+        "/mnt/a6intlalipayplus-idt2-aidc/common/alipayplus/infer/xiaoyuan/experiments/sm90-megamhc-decode-20261122/tune_mhc.py",
+        "--fixtures",
+        "/mnt/a6intlalipayplus-idt2-aidc/common/alipayplus/infer/xiaoyuan/experiments/sm90-megamhc-double-20261121/input",
+        "--tokens",
+        "32",
+        "--sms",
+        "132",
+        "--repetitions",
+        "128",
+        "--rounds",
+        "32",
+        "--output",
+        "/mnt/a6intlalipayplus-idt2-aidc/common/alipayplus/infer/xiaoyuan/experiments/sm90-megamhc-decode-20261122/trials/decode-matrix/7-current.json"
+      ],
+      "extension_sha256": "df048dbf0f6044f426d2c3782ca18e50fd7af3367f41d4ae4c5cca86895994a5",
+      "pid": 145526,
+      "returncode": 0
+    }
+  ]
+}

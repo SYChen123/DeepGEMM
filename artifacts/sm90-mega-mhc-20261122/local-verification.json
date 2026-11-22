@@ -1,0 +1,9 @@
+{
+  "archive": "/Users/chensiyuan/LLMInfer/profile/ncu/sm90-megamhc-decode-20261122/decode-results.tar.xz",
+  "archive_bytes": 14800040,
+  "archive_sha256": "fa99cd5937dd6ba6272fdadfd4678593928b0f53b1e220ba84dfbb7888003ae8",
+  "manifest_files_verified": 310,
+  "production_source_files_verified": 9,
+  "ncu_reports": 8,
+  "status": "verified"
+}

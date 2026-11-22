@@ -1,0 +1,23 @@
+/mnt/a6intlalipayplus-idt2-aidc/common/alipayplus/infer/xiaoyuan/experiments/sm90-megamhc-decode-20261122/variants/production_v3/deep_gemm/include/deep_gemm/impls/sm100_mega_mhc.cuh(75): warning #186-D: pointless comparison of unsigned integer with zero
+          return kNumKBlocksPerSplit + (split_idx < kNumLongSplits);
+                                                  ^
+          detected during instantiation of "void deep_gemm::sm100_mega_mhc_impl<kHidden,kNumSplits,kNumSMs,kIsShifted,kStoreBF16,kStoreFP8,SF_BLOCK_M>(cute::TmaDescriptor, cute::TmaDescriptor, cute::TmaDescriptor, cute::TmaDescriptor, cute::TmaDescriptor, cute::TmaDescriptor, cute::TmaDescriptor, cute::TmaDescriptor, deep_gemm::layout::mega_mhc::MixArgs, deep_gemm::layout::mega_mhc::NormArgs, void *, uint64_t *) [with kHidden=5120U, kNumSplits=16U, kNumSMs=132U, kIsShifted=true, kStoreBF16=true, kStoreFP8=false, SF_BLOCK_M=0U]" 
+
+Remark: The warnings can be suppressed with "-diag-suppress <warning-number>"
+
+/mnt/a6intlalipayplus-idt2-aidc/common/alipayplus/infer/xiaoyuan/experiments/sm90-megamhc-decode-20261122/variants/production_v3/deep_gemm/include/deep_gemm/impls/sm100_mega_mhc.cuh(75): warning #186-D: pointless comparison of unsigned integer with zero
+          return kNumKBlocksPerSplit + (split_idx < kNumLongSplits);
+                                                  ^
+          detected during instantiation of "void deep_gemm::sm100_mega_mhc_impl<kHidden,kNumSplits,kNumSMs,kIsShifted,kStoreBF16,kStoreFP8,SF_BLOCK_M>(cute::TmaDescriptor, cute::TmaDescriptor, cute::TmaDescriptor, cute::TmaDescriptor, cute::TmaDescriptor, cute::TmaDescriptor, cute::TmaDescriptor, cute::TmaDescriptor, deep_gemm::layout::mega_mhc::MixArgs, deep_gemm::layout::mega_mhc::NormArgs, void *, uint64_t *) [with kHidden=5120U, kNumSplits=16U, kNumSMs=132U, kIsShifted=true, kStoreBF16=true, kStoreFP8=true, SF_BLOCK_M=224U]" 
+
+ptxas info    : 11 bytes gmem
+ptxas info    : Compiling entry function '_ZN9deep_gemm19sm100_mega_mhc_implILj5120ELj16ELj132ELb1ELb1ELb1ELj224EEEv14CUtensorMap_stS1_S1_S1_S1_S1_S1_S1_NS_6layout8mega_mhc7MixArgsENS3_8NormArgsEPvPm' for 'sm_100a'
+ptxas info    : Function properties for _ZN9deep_gemm19sm100_mega_mhc_implILj5120ELj16ELj132ELb1ELb1ELb1ELj224EEEv14CUtensorMap_stS1_S1_S1_S1_S1_S1_S1_NS_6layout8mega_mhc7MixArgsENS3_8NormArgsEPvPm
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 80 registers, used 1 barriers
+ptxas info    : Compile time = 246.054 ms
+ptxas info    : Compiling entry function '_ZN9deep_gemm19sm100_mega_mhc_implILj5120ELj16ELj132ELb1ELb1ELb0ELj0EEEv14CUtensorMap_stS1_S1_S1_S1_S1_S1_S1_NS_6layout8mega_mhc7MixArgsENS3_8NormArgsEPvPm' for 'sm_100a'
+ptxas info    : Function properties for _ZN9deep_gemm19sm100_mega_mhc_implILj5120ELj16ELj132ELb1ELb1ELb0ELj0EEEv14CUtensorMap_stS1_S1_S1_S1_S1_S1_S1_NS_6layout8mega_mhc7MixArgsENS3_8NormArgsEPvPm
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 80 registers, used 1 barriers
+ptxas info    : Compile time = 212.484 ms

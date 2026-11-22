@@ -1,0 +1,788 @@
+{
+  "note": "Separate instrumented launches; interval sums are not normal latency.",
+  "captures": [
+    {
+      "file": "profiles/baseline/32/sm90-megamhc-32.json",
+      "grid": 132,
+      "threads": 768,
+      "attempted_events": 30560,
+      "dropped_events": 0,
+      "sinkhorn_iteration_counts": {
+        "20": 32
+      },
+      "phases": {
+        "role": {
+          "count": 3168,
+          "median_duration_us": 0.768,
+          "last_end_us": 21.44
+        },
+        "Post IO wait": {
+          "count": 640,
+          "median_duration_us": 0.128,
+          "last_end_us": 7.5520000000000005
+        },
+        "Post A wait": {
+          "count": 2560,
+          "median_duration_us": 0.16,
+          "last_end_us": 11.616
+        },
+        "Post": {
+          "count": 2560,
+          "median_duration_us": 0.32,
+          "last_end_us": 11.968
+        },
+        "Fn wait": {
+          "count": 320,
+          "median_duration_us": 0.256,
+          "last_end_us": 9.376
+        },
+        "A wait": {
+          "count": 2560,
+          "median_duration_us": 0.128,
+          "last_end_us": 13.184
+        },
+        "WGMMA completion gate": {
+          "count": 2560,
+          "median_duration_us": 0.096,
+          "last_end_us": 13.408
+        },
+        "projection task": {
+          "count": 160,
+          "median_duration_us": 12.288,
+          "last_end_us": 13.536000000000001
+        },
+        "Mix dependency wait": {
+          "count": 32,
+          "median_duration_us": 13.728,
+          "last_end_us": 14.528
+        },
+        "Mix partial reduction": {
+          "count": 32,
+          "median_duration_us": 4.416,
+          "last_end_us": 19.168
+        },
+        "Mix affine + Sinkhorn": {
+          "count": 32,
+          "median_duration_us": 2.2560000000000002,
+          "last_end_us": 21.28
+        },
+        "Norm dependency wait": {
+          "count": 320,
+          "median_duration_us": 12.576,
+          "last_end_us": 13.664000000000001
+        },
+        "Norm compute + store": {
+          "count": 320,
+          "median_duration_us": 0.832,
+          "last_end_us": 15.712
+        }
+      },
+      "ncu": {}
+    },
+    {
+      "file": "profiles/baseline/4096/sm90-megamhc-4096.json",
+      "grid": 132,
+      "threads": 768,
+      "attempted_events": 1493184,
+      "dropped_events": 0,
+      "sinkhorn_iteration_counts": {
+        "20": 4096
+      },
+      "phases": {
+        "role": {
+          "count": 3168,
+          "median_duration_us": 220.224,
+          "last_end_us": 230.048
+        },
+        "Post IO wait": {
+          "count": 40960,
+          "median_duration_us": 0.128,
+          "last_end_us": 217.664
+        },
+        "Post A wait": {
+          "count": 163840,
+          "median_duration_us": 0.608,
+          "last_end_us": 221.728
+        },
+        "Post": {
+          "count": 163840,
+          "median_duration_us": 0.352,
+          "last_end_us": 222.08
+        },
+        "Fn wait": {
+          "count": 20480,
+          "median_duration_us": 0.16,
+          "last_end_us": 219.456
+        },
+        "A wait": {
+          "count": 163840,
+          "median_duration_us": 0.128,
+          "last_end_us": 223.35999999999999
+        },
+        "WGMMA completion gate": {
+          "count": 163840,
+          "median_duration_us": 0.096,
+          "last_end_us": 223.552
+        },
+        "projection task": {
+          "count": 4096,
+          "median_duration_us": 26.848,
+          "last_end_us": 223.68
+        },
+        "Mix dependency wait": {
+          "count": 4096,
+          "median_duration_us": 21.088,
+          "last_end_us": 224.608
+        },
+        "Mix partial reduction": {
+          "count": 4096,
+          "median_duration_us": 2.048,
+          "last_end_us": 227.744
+        },
+        "Mix affine + Sinkhorn": {
+          "count": 4096,
+          "median_duration_us": 3.552,
+          "last_end_us": 229.85600000000002
+        },
+        "Norm dependency wait": {
+          "count": 4096,
+          "median_duration_us": 19.136,
+          "last_end_us": 224.16000000000003
+        },
+        "Norm compute + store": {
+          "count": 4096,
+          "median_duration_us": 7.584,
+          "last_end_us": 229.12
+        }
+      },
+      "ncu": {}
+    },
+    {
+      "file": "profiles/decode_opt1/32/sm90-megamhc-32.json",
+      "grid": 132,
+      "threads": 768,
+      "attempted_events": 31200,
+      "dropped_events": 0,
+      "sinkhorn_iteration_counts": {
+        "20": 32
+      },
+      "phases": {
+        "role": {
+          "count": 3168,
+          "median_duration_us": 0.736,
+          "last_end_us": 17.952
+        },
+        "Post IO wait": {
+          "count": 640,
+          "median_duration_us": 0.16,
+          "last_end_us": 7.264
+        },
+        "Post A wait": {
+          "count": 2560,
+          "median_duration_us": 0.192,
+          "last_end_us": 11.360000000000001
+        },
+        "Post": {
+          "count": 2560,
+          "median_duration_us": 0.32,
+          "last_end_us": 11.712
+        },
+        "Fn wait": {
+          "count": 320,
+          "median_duration_us": 0.448,
+          "last_end_us": 9.120000000000001
+        },
+        "A wait": {
+          "count": 2560,
+          "median_duration_us": 0.128,
+          "last_end_us": 12.96
+        },
+        "WGMMA completion gate": {
+          "count": 2560,
+          "median_duration_us": 0.096,
+          "last_end_us": 13.152
+        },
+        "projection task": {
+          "count": 160,
+          "median_duration_us": 12.224,
+          "last_end_us": 13.280000000000001
+        },
+        "Mix dependency wait": {
+          "count": 128,
+          "median_duration_us": 12.768,
+          "last_end_us": 14.4
+        },
+        "Mix partial reduction": {
+          "count": 128,
+          "median_duration_us": 0.864,
+          "last_end_us": 15.392000000000001
+        },
+        "Mix affine + Sinkhorn": {
+          "count": 32,
+          "median_duration_us": 2.208,
+          "last_end_us": 17.664
+        },
+        "Mix worker join": {
+          "count": 128,
+          "median_duration_us": 2.4,
+          "last_end_us": 17.824
+        },
+        "Norm dependency wait": {
+          "count": 320,
+          "median_duration_us": 12.352,
+          "last_end_us": 13.536000000000001
+        },
+        "Norm compute + store": {
+          "count": 320,
+          "median_duration_us": 0.8,
+          "last_end_us": 14.527999999999999
+        }
+      },
+      "ncu": {}
+    },
+    {
+      "file": "profiles/decode_opt1/4096/sm90-megamhc-4096.json",
+      "grid": 132,
+      "threads": 768,
+      "attempted_events": 1487040,
+      "dropped_events": 0,
+      "sinkhorn_iteration_counts": {
+        "20": 4096
+      },
+      "phases": {
+        "role": {
+          "count": 3168,
+          "median_duration_us": 223.328,
+          "last_end_us": 231.87199999999999
+        },
+        "Post IO wait": {
+          "count": 40960,
+          "median_duration_us": 0.128,
+          "last_end_us": 209.536
+        },
+        "Post A wait": {
+          "count": 163840,
+          "median_duration_us": 0.608,
+          "last_end_us": 213.568
+        },
+        "Post": {
+          "count": 163840,
+          "median_duration_us": 0.32,
+          "last_end_us": 213.952
+        },
+        "Norm dependency wait": {
+          "count": 4096,
+          "median_duration_us": 0.832,
+          "last_end_us": 224.736
+        },
+        "Norm compute + store": {
+          "count": 4096,
+          "median_duration_us": 8.96,
+          "last_end_us": 230.36800000000002
+        },
+        "Fn wait": {
+          "count": 20480,
+          "median_duration_us": 0.192,
+          "last_end_us": 211.232
+        },
+        "A wait": {
+          "count": 163840,
+          "median_duration_us": 0.128,
+          "last_end_us": 215.35999999999999
+        },
+        "WGMMA completion gate": {
+          "count": 163840,
+          "median_duration_us": 0.096,
+          "last_end_us": 215.744
+        },
+        "projection task": {
+          "count": 1024,
+          "median_duration_us": 104.992,
+          "last_end_us": 216.0
+        },
+        "Mix dependency wait": {
+          "count": 4096,
+          "median_duration_us": 0.416,
+          "last_end_us": 229.024
+        },
+        "Mix partial reduction": {
+          "count": 4096,
+          "median_duration_us": 0.928,
+          "last_end_us": 229.66400000000002
+        },
+        "Mix affine + Sinkhorn": {
+          "count": 4096,
+          "median_duration_us": 2.752,
+          "last_end_us": 231.68
+        }
+      },
+      "ncu": {}
+    },
+    {
+      "file": "profiles/decode_opt2/32/sm90-megamhc-32.json",
+      "grid": 132,
+      "threads": 768,
+      "attempted_events": 31520,
+      "dropped_events": 0,
+      "sinkhorn_iteration_counts": {
+        "20": 32
+      },
+      "phases": {
+        "role": {
+          "count": 3168,
+          "median_duration_us": 1.056,
+          "last_end_us": 17.504
+        },
+        "Post IO wait": {
+          "count": 640,
+          "median_duration_us": 0.128,
+          "last_end_us": 3.68
+        },
+        "Post A wait": {
+          "count": 2560,
+          "median_duration_us": 0.128,
+          "last_end_us": 8.608
+        },
+        "Post": {
+          "count": 2560,
+          "median_duration_us": 0.384,
+          "last_end_us": 9.088000000000001
+        },
+        "Fn wait": {
+          "count": 320,
+          "median_duration_us": 1.984,
+          "last_end_us": 3.712
+        },
+        "A wait": {
+          "count": 2560,
+          "median_duration_us": 0.128,
+          "last_end_us": 10.272
+        },
+        "WGMMA completion gate": {
+          "count": 2560,
+          "median_duration_us": 0.096,
+          "last_end_us": 10.464
+        },
+        "projection task": {
+          "count": 320,
+          "median_duration_us": 7.936,
+          "last_end_us": 10.592
+        },
+        "Mix dependency wait": {
+          "count": 128,
+          "median_duration_us": 10.4,
+          "last_end_us": 11.520000000000001
+        },
+        "Mix partial reduction": {
+          "count": 128,
+          "median_duration_us": 2.208,
+          "last_end_us": 14.048
+        },
+        "Mix affine + Sinkhorn": {
+          "count": 32,
+          "median_duration_us": 2.368,
+          "last_end_us": 16.448
+        },
+        "Mix worker join": {
+          "count": 128,
+          "median_duration_us": 2.592,
+          "last_end_us": 16.704
+        },
+        "Norm dependency wait": {
+          "count": 320,
+          "median_duration_us": 9.6,
+          "last_end_us": 11.008
+        },
+        "Norm compute + store": {
+          "count": 320,
+          "median_duration_us": 1.856,
+          "last_end_us": 17.28
+        }
+      },
+      "ncu": {}
+    },
+    {
+      "file": "profiles/decode_opt2/4096/sm90-megamhc-4096.json",
+      "grid": 132,
+      "threads": 768,
+      "attempted_events": 1487040,
+      "dropped_events": 0,
+      "sinkhorn_iteration_counts": {
+        "20": 4096
+      },
+      "phases": {
+        "role": {
+          "count": 3168,
+          "median_duration_us": 223.888,
+          "last_end_us": 232.8
+        },
+        "Post IO wait": {
+          "count": 40960,
+          "median_duration_us": 0.128,
+          "last_end_us": 210.272
+        },
+        "Post A wait": {
+          "count": 163840,
+          "median_duration_us": 0.608,
+          "last_end_us": 214.304
+        },
+        "Post": {
+          "count": 163840,
+          "median_duration_us": 0.32,
+          "last_end_us": 214.68800000000002
+        },
+        "Norm dependency wait": {
+          "count": 4096,
+          "median_duration_us": 0.608,
+          "last_end_us": 224.864
+        },
+        "Norm compute + store": {
+          "count": 4096,
+          "median_duration_us": 8.544,
+          "last_end_us": 230.33599999999998
+        },
+        "Fn wait": {
+          "count": 20480,
+          "median_duration_us": 0.192,
+          "last_end_us": 212.032
+        },
+        "A wait": {
+          "count": 163840,
+          "median_duration_us": 0.128,
+          "last_end_us": 215.93599999999998
+        },
+        "WGMMA completion gate": {
+          "count": 163840,
+          "median_duration_us": 0.096,
+          "last_end_us": 216.192
+        },
+        "projection task": {
+          "count": 1024,
+          "median_duration_us": 105.248,
+          "last_end_us": 216.928
+        },
+        "Mix dependency wait": {
+          "count": 4096,
+          "median_duration_us": 0.384,
+          "last_end_us": 229.82399999999998
+        },
+        "Mix partial reduction": {
+          "count": 4096,
+          "median_duration_us": 0.896,
+          "last_end_us": 230.624
+        },
+        "Mix affine + Sinkhorn": {
+          "count": 4096,
+          "median_duration_us": 3.136,
+          "last_end_us": 232.64000000000001
+        }
+      },
+      "ncu": {}
+    },
+    {
+      "file": "profiles/diagnostic-s80_cycle/32/sm90-megamhc-32.json",
+      "grid": 132,
+      "threads": 768,
+      "attempted_events": 30752,
+      "dropped_events": 0,
+      "sinkhorn_iteration_counts": {
+        "20": 32
+      },
+      "phases": {
+        "role": {
+          "count": 3168,
+          "median_duration_us": 1.024,
+          "last_end_us": 13.92
+        },
+        "Post IO wait": {
+          "count": 640,
+          "median_duration_us": 0.128,
+          "last_end_us": 3.072
+        },
+        "Post A wait": {
+          "count": 2560,
+          "median_duration_us": 0.128,
+          "last_end_us": 6.4
+        },
+        "Post": {
+          "count": 2560,
+          "median_duration_us": 0.352,
+          "last_end_us": 6.816000000000001
+        },
+        "Fn wait": {
+          "count": 320,
+          "median_duration_us": 1.6,
+          "last_end_us": 3.04
+        },
+        "A wait": {
+          "count": 2560,
+          "median_duration_us": 0.128,
+          "last_end_us": 7.936
+        },
+        "WGMMA completion gate": {
+          "count": 2560,
+          "median_duration_us": 0.096,
+          "last_end_us": 8.16
+        },
+        "projection task": {
+          "count": 320,
+          "median_duration_us": 7.328,
+          "last_end_us": 8.288
+        },
+        "Mix affine + Sinkhorn": {
+          "count": 32,
+          "median_duration_us": 2.848,
+          "last_end_us": 13.664000000000001
+        },
+        "Norm dependency wait": {
+          "count": 320,
+          "median_duration_us": 7.52,
+          "last_end_us": 8.736
+        },
+        "Norm compute + store": {
+          "count": 320,
+          "median_duration_us": 4.992,
+          "last_end_us": 13.696000000000002
+        }
+      }
+    },
+    {
+      "file": "profiles/norm16/32/sm90-megamhc-32.json",
+      "grid": 132,
+      "threads": 768,
+      "attempted_events": 31520,
+      "dropped_events": 0,
+      "sinkhorn_iteration_counts": {
+        "20": 32
+      },
+      "phases": {
+        "role": {
+          "count": 3168,
+          "median_duration_us": 0.976,
+          "last_end_us": 15.968
+        },
+        "Post IO wait": {
+          "count": 640,
+          "median_duration_us": 0.352,
+          "last_end_us": 3.52
+        },
+        "Post A wait": {
+          "count": 2560,
+          "median_duration_us": 0.128,
+          "last_end_us": 8.096
+        },
+        "Post": {
+          "count": 2560,
+          "median_duration_us": 0.416,
+          "last_end_us": 8.48
+        },
+        "Fn wait": {
+          "count": 320,
+          "median_duration_us": 1.568,
+          "last_end_us": 3.488
+        },
+        "A wait": {
+          "count": 2560,
+          "median_duration_us": 0.128,
+          "last_end_us": 9.44
+        },
+        "WGMMA completion gate": {
+          "count": 2560,
+          "median_duration_us": 0.096,
+          "last_end_us": 9.632
+        },
+        "projection task": {
+          "count": 320,
+          "median_duration_us": 7.664,
+          "last_end_us": 9.76
+        },
+        "Mix dependency wait": {
+          "count": 128,
+          "median_duration_us": 9.376,
+          "last_end_us": 10.751999999999999
+        },
+        "Mix partial reduction": {
+          "count": 128,
+          "median_duration_us": 2.24,
+          "last_end_us": 13.152000000000001
+        },
+        "Mix affine + Sinkhorn": {
+          "count": 32,
+          "median_duration_us": 2.32,
+          "last_end_us": 15.552
+        },
+        "Mix worker join": {
+          "count": 128,
+          "median_duration_us": 2.56,
+          "last_end_us": 15.808
+        },
+        "Norm dependency wait": {
+          "count": 320,
+          "median_duration_us": 8.928,
+          "last_end_us": 10.208
+        },
+        "Norm compute + store": {
+          "count": 320,
+          "median_duration_us": 0.992,
+          "last_end_us": 12.416
+        }
+      }
+    },
+    {
+      "file": "profiles/prefill_opt1/32/sm90-megamhc-32.json",
+      "grid": 132,
+      "threads": 768,
+      "attempted_events": 30560,
+      "dropped_events": 0,
+      "sinkhorn_iteration_counts": {
+        "20": 32
+      },
+      "phases": {
+        "role": {
+          "count": 3168,
+          "median_duration_us": 0.8,
+          "last_end_us": 20.384
+        },
+        "Post IO wait": {
+          "count": 640,
+          "median_duration_us": 0.128,
+          "last_end_us": 7.072
+        },
+        "Post A wait": {
+          "count": 2560,
+          "median_duration_us": 0.16,
+          "last_end_us": 11.072000000000001
+        },
+        "Post": {
+          "count": 2560,
+          "median_duration_us": 0.32,
+          "last_end_us": 11.488
+        },
+        "Fn wait": {
+          "count": 320,
+          "median_duration_us": 0.192,
+          "last_end_us": 8.8
+        },
+        "A wait": {
+          "count": 2560,
+          "median_duration_us": 0.128,
+          "last_end_us": 12.64
+        },
+        "WGMMA completion gate": {
+          "count": 2560,
+          "median_duration_us": 0.096,
+          "last_end_us": 12.864
+        },
+        "projection task": {
+          "count": 160,
+          "median_duration_us": 12.096,
+          "last_end_us": 12.992
+        },
+        "Mix dependency wait": {
+          "count": 32,
+          "median_duration_us": 13.008,
+          "last_end_us": 14.048
+        },
+        "Mix partial reduction": {
+          "count": 32,
+          "median_duration_us": 3.904,
+          "last_end_us": 18.048000000000002
+        },
+        "Mix affine + Sinkhorn": {
+          "count": 32,
+          "median_duration_us": 2.272,
+          "last_end_us": 20.224000000000004
+        },
+        "Norm dependency wait": {
+          "count": 320,
+          "median_duration_us": 12.16,
+          "last_end_us": 13.248
+        },
+        "Norm compute + store": {
+          "count": 320,
+          "median_duration_us": 1.28,
+          "last_end_us": 14.815999999999999
+        }
+      },
+      "ncu": {}
+    },
+    {
+      "file": "profiles/prefill_opt1/4096/sm90-megamhc-4096.json",
+      "grid": 132,
+      "threads": 768,
+      "attempted_events": 1487040,
+      "dropped_events": 0,
+      "sinkhorn_iteration_counts": {
+        "20": 4096
+      },
+      "phases": {
+        "role": {
+          "count": 3168,
+          "median_duration_us": 222.528,
+          "last_end_us": 230.784
+        },
+        "Post IO wait": {
+          "count": 40960,
+          "median_duration_us": 0.128,
+          "last_end_us": 209.344
+        },
+        "Post A wait": {
+          "count": 163840,
+          "median_duration_us": 0.608,
+          "last_end_us": 213.312
+        },
+        "Post": {
+          "count": 163840,
+          "median_duration_us": 0.32,
+          "last_end_us": 213.66400000000002
+        },
+        "Norm dependency wait": {
+          "count": 4096,
+          "median_duration_us": 0.448,
+          "last_end_us": 223.52
+        },
+        "Norm compute + store": {
+          "count": 4096,
+          "median_duration_us": 7.968,
+          "last_end_us": 228.64
+        },
+        "Fn wait": {
+          "count": 20480,
+          "median_duration_us": 0.192,
+          "last_end_us": 211.072
+        },
+        "A wait": {
+          "count": 163840,
+          "median_duration_us": 0.128,
+          "last_end_us": 214.944
+        },
+        "WGMMA completion gate": {
+          "count": 163840,
+          "median_duration_us": 0.096,
+          "last_end_us": 215.168
+        },
+        "projection task": {
+          "count": 1024,
+          "median_duration_us": 104.96,
+          "last_end_us": 215.328
+        },
+        "Mix dependency wait": {
+          "count": 4096,
+          "median_duration_us": 0.352,
+          "last_end_us": 227.776
+        },
+        "Mix partial reduction": {
+          "count": 4096,
+          "median_duration_us": 0.928,
+          "last_end_us": 228.576
+        },
+        "Mix affine + Sinkhorn": {
+          "count": 4096,
+          "median_duration_us": 3.2,
+          "last_end_us": 230.592
+        }
+      },
+      "ncu": {}
+    }
+  ]
+}

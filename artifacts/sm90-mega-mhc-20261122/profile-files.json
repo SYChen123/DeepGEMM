@@ -1,0 +1,186 @@
+{
+  "profiles/baseline/32/capture-32.json": {
+    "sha256": "777d6d146901091b30e601f3c8aebce2367ff62a2423087e83952b4903866646",
+    "bytes": 7754
+  },
+  "profiles/baseline/32/kernel.csv": {
+    "sha256": "ef0e1e94c1bff056448f959233cd86714966a6db8ecdc464fcfae21b451e8b0d",
+    "bytes": 23423
+  },
+  "profiles/baseline/32/kernel.ncu-rep": {
+    "sha256": "819ec97c0e38e14842fc4b422da097f9743fb9be0f011c8c5bccb77de70c3002",
+    "bytes": 4333402
+  },
+  "profiles/baseline/32/ncu-capture.json": {
+    "sha256": "4df96e91b33e29db11fa79aaae5492ea4c63dce1c8f18b3f1052b828ebb3c100",
+    "bytes": 2833
+  },
+  "profiles/baseline/32/sm90-megamhc-32.json": {
+    "sha256": "487c824ab21278bc93f8c2da28d223865bd3f5e1120eebaa8a0cd62bf0d2a0c4",
+    "bytes": 1826710
+  },
+  "profiles/baseline/4096/capture-4096.json": {
+    "sha256": "fdbed9bbd1dad37312d3598ea4f2162b903c6da82eebbc1b8ae8ecb3290ddf64",
+    "bytes": 527641
+  },
+  "profiles/baseline/4096/kernel.csv": {
+    "sha256": "020c70afddba0d01cd6bdc410d49132e46d4ddc171eeabe204aabe15d79dcd2a",
+    "bytes": 23559
+  },
+  "profiles/baseline/4096/kernel.ncu-rep": {
+    "sha256": "91872c1c11a9c1ce4eaaa5be714787bdb0f320dea97102b7cb34d8d8aa6842d3",
+    "bytes": 5143719
+  },
+  "profiles/baseline/4096/ncu-capture.json": {
+    "sha256": "eb7f0b67fe253a6533206e29ae345a8ff173060e54deaa266e6710ca54769209",
+    "bytes": 2835
+  },
+  "profiles/baseline/4096/sm90-megamhc-4096.json": {
+    "sha256": "b852e2c65d0a05f486168843d402fc9b8c7bc5b3828f6351db3b3f1d13eced98",
+    "bytes": 91773242
+  },
+  "profiles/decode_opt1/32/capture-32.json": {
+    "sha256": "80d919619bd054f8bf550186f76fb23cdb4e7f5141aca03a5f3ddee159b49192",
+    "bytes": 8118
+  },
+  "profiles/decode_opt1/32/kernel.csv": {
+    "sha256": "b718ba74cdb5ba31e4ded80d8d20cc40cb0b2682496be282854cbb9bc0658b10",
+    "bytes": 23424
+  },
+  "profiles/decode_opt1/32/kernel.ncu-rep": {
+    "sha256": "63ceb29bcd97b9aad15c3e96b503cc8ee6c4cbc19bc9f3215f75a8b0e99ca5ab",
+    "bytes": 4617414
+  },
+  "profiles/decode_opt1/32/ncu-capture.json": {
+    "sha256": "c87c78f8e63dcda642918154ccc408ebcf3dc16d5b6402acf41865638aa2b1b0",
+    "bytes": 3268
+  },
+  "profiles/decode_opt1/32/sm90-megamhc-32.json": {
+    "sha256": "a5327d4cd1d1cb27abc14baa49502ad5c1f8c44352bfde55f72f0d73a49d9c00",
+    "bytes": 1867666
+  },
+  "profiles/decode_opt1/4096/capture-4096.json": {
+    "sha256": "31f31679554fb94dcaf26d8f7b806565c7088c1d28a4e23479e85bd62e3770b2",
+    "bytes": 528087
+  },
+  "profiles/decode_opt1/4096/kernel.csv": {
+    "sha256": "0e9b9af9f347b57cdfad41bc80c0f41c5dfc69ccec7e150bedf003e229dfc6f9",
+    "bytes": 23553
+  },
+  "profiles/decode_opt1/4096/kernel.ncu-rep": {
+    "sha256": "2d4c5129a45981c608a4a7413a548ac2dbacfc22a60b7e39a7917500badb0567",
+    "bytes": 5221382
+  },
+  "profiles/decode_opt1/4096/ncu-capture.json": {
+    "sha256": "5b9f05a8189c1e0d5ac9ed51e09ac232106f1b76ede2210da5a9f97c98b5bd3e",
+    "bytes": 3364
+  },
+  "profiles/decode_opt1/4096/sm90-megamhc-4096.json": {
+    "sha256": "39e9a556d987d2e890d0a03a2878684f869226c852774ff43cd73fcc8fda731c",
+    "bytes": 91361549
+  },
+  "profiles/decode_opt2/32/capture-32.json": {
+    "sha256": "cf6be20863e4c73d4168ea66c1de1f74dd5b119d816ba6817f6719c9f382f44b",
+    "bytes": 8119
+  },
+  "profiles/decode_opt2/32/kernel.csv": {
+    "sha256": "b7917620aa165916878d4540d7235155288cfdf80c8e933751a60f87da667007",
+    "bytes": 23422
+  },
+  "profiles/decode_opt2/32/kernel.ncu-rep": {
+    "sha256": "38d9dd9fbd3dd0997bfccb1110940ed985abac5751e49c078c38275326ddf11e",
+    "bytes": 4567350
+  },
+  "profiles/decode_opt2/32/ncu-capture.json": {
+    "sha256": "a9251cf0f661ab1549a3ddbe350db82fd635b1f2a32bb7359ae5b9dea0c3a457",
+    "bytes": 3270
+  },
+  "profiles/decode_opt2/32/sm90-megamhc-32.json": {
+    "sha256": "ba28da902b21b353a4d74626025263144aef155f18c95708847cefde1fef907c",
+    "bytes": 1886188
+  },
+  "profiles/decode_opt2/4096/capture-4096.json": {
+    "sha256": "894afb75fffbf913c7b3ce1158cae3951db487c573448759758ce417102a2b4c",
+    "bytes": 528079
+  },
+  "profiles/decode_opt2/4096/kernel.csv": {
+    "sha256": "621579775b96cbbd661391aa7b5212f67d6ac4d70e70dc9b4c71bda3988d8d23",
+    "bytes": 23552
+  },
+  "profiles/decode_opt2/4096/kernel.ncu-rep": {
+    "sha256": "6a4a4197f99d393465d75208d29cd053b63776dc22ab632163cde9272e266b22",
+    "bytes": 5050521
+  },
+  "profiles/decode_opt2/4096/ncu-capture.json": {
+    "sha256": "73f28f1c0f5c9b13445662ac7476afa0fe838537b083500d10b90db36904e213",
+    "bytes": 3364
+  },
+  "profiles/decode_opt2/4096/sm90-megamhc-4096.json": {
+    "sha256": "57f178264019c2dbcf8237e30a4375c0b7b952c184e04bb3f7dc82ebdef264e0",
+    "bytes": 91361773
+  },
+  "profiles/diagnostic-s80-mix4/capture-32.json": {
+    "sha256": "30fe3ac15f5498d2a7794a6a6a4601a188727ed067571ec48b67cddfccca735a",
+    "bytes": 8105
+  },
+  "profiles/diagnostic-s80-mix4/sm90-megamhc-32.json": {
+    "sha256": "ccc5fb76523f2992ff01322d0abe0a662f0022df3684ca6a546275e3a37366c2",
+    "bytes": 1885222
+  },
+  "profiles/diagnostic-s80_cycle/32/capture-32.json": {
+    "sha256": "4b6b6676c6f96ac821e96edbd27fd0b70f81d490bd91a03f755ee309218b2a86",
+    "bytes": 7949
+  },
+  "profiles/diagnostic-s80_cycle/32/sm90-megamhc-32.json": {
+    "sha256": "8c597fedca92881df336dc40568cf76f5ec32ce920901f34652f40aee32c6fc4",
+    "bytes": 1835402
+  },
+  "profiles/norm16/32/capture-32.json": {
+    "sha256": "e25c138621f31db79592356360b0808c6925264c29c3de65ffbc598d18f72ace",
+    "bytes": 8113
+  },
+  "profiles/norm16/32/sm90-megamhc-32.json": {
+    "sha256": "95d8a5c7e6755cb07c3e3fe08b9eabc31d949e7656edab6c7d604d2f6e5a21af",
+    "bytes": 1885765
+  },
+  "profiles/prefill_opt1/32/capture-32.json": {
+    "sha256": "407154d6eed8898bdde61d6a43ad68f636f0ad7497106eb8ffed6acd2903fa39",
+    "bytes": 7747
+  },
+  "profiles/prefill_opt1/32/kernel.csv": {
+    "sha256": "afce49f5246c4d2ab0fa655c006eef6ad5be3aeb6f985cc263c6e4b60ba9c7cf",
+    "bytes": 23424
+  },
+  "profiles/prefill_opt1/32/kernel.ncu-rep": {
+    "sha256": "0e4ab4cea7ef42b4653b362c4cbae0cdca2a9522fdd37b73a3d17f7b4f426b44",
+    "bytes": 4329149
+  },
+  "profiles/prefill_opt1/32/ncu-capture.json": {
+    "sha256": "fa1490b7af7817e29a39e7d171d7ac05048cc62d24204a6d3c52737925fa8a8d",
+    "bytes": 2837
+  },
+  "profiles/prefill_opt1/32/sm90-megamhc-32.json": {
+    "sha256": "6ea97661d9ffd9a66501f528a312eb97cfb8a3ed5b85cb1537d6653ef658f725",
+    "bytes": 1825605
+  },
+  "profiles/prefill_opt1/4096/capture-4096.json": {
+    "sha256": "685b7f2130d9187c320a9fab669b451400bdbf9b03da4acae78c9168b60ede0b",
+    "bytes": 527992
+  },
+  "profiles/prefill_opt1/4096/kernel.csv": {
+    "sha256": "a0883a79d351261ad3846f53cae74d5cc1619bdb3d27b505ad677d73e515958a",
+    "bytes": 23553
+  },
+  "profiles/prefill_opt1/4096/kernel.ncu-rep": {
+    "sha256": "76e68bbffea06cf4fbdcbb25900c597575d2245453b140d52570d4c1edb9aa67",
+    "bytes": 5033440
+  },
+  "profiles/prefill_opt1/4096/ncu-capture.json": {
+    "sha256": "c4d1aa648dd2f89a27fed396b5f5083aa1f8f112374385e66f3827975661c370",
+    "bytes": 3261
+  },
+  "profiles/prefill_opt1/4096/sm90-megamhc-4096.json": {
+    "sha256": "f2a9a23ee00d5833351713daa21afdcab9ef3e7098706419ad4a13bb61714882",
+    "bytes": 91362219
+  }
+}
