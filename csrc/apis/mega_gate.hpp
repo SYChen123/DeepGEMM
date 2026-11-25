@@ -2,6 +2,7 @@
 
 #include <cmath>
 #include <map>
+#include <mutex>
 #include <optional>
 #include <string>
 #include <tuple>
@@ -11,6 +12,7 @@
 #include <torch/torch.h>
 
 #include "../runtime/runtime.hpp"
+#include "../jit_kernels/impls/sm90_bf16_mega_gate.hpp"
 #include "../jit_kernels/impls/sm100_bf16_mega_gate.hpp"
 #include "../utils/exception.hpp"
 #include "../utils/layout.hpp"
@@ -27,13 +29,21 @@ static int get_scoring_type(const std::string& scoring_func) {
     DG_HOST_UNREACHABLE("Unsupported MoE scoring function");
 }
 
-static const torch::Tensor& get_score_barriers(const torch::TensorOptions& options) {
+static torch::Tensor get_score_barriers(const torch::TensorOptions& options, const int cold_capture_blocks = 0) {
     const auto stream = at::cuda::getCurrentCUDAStream();
     DG_HOST_ASSERT(options.device() == stream.device());
+    static std::mutex mutex;
     static std::unordered_map<c10::cuda::CUDAStream, torch::Tensor> score_barriers_by_stream;
+    const std::lock_guard lock(mutex);
     auto& score_barriers = score_barriers_by_stream[stream];
     if (not score_barriers.defined()) {
-        DG_HOST_ASSERT(c10::cuda::currentStreamCaptureStatusMayInitCtx() == c10::cuda::CaptureStatus::None);
+        if (c10::cuda::currentStreamCaptureStatusMayInitCtx() != c10::cuda::CaptureStatus::None) {
+            DG_HOST_ASSERT(cold_capture_blocks > 0);
+            // An auxiliary stream can first use the operator during graph capture.
+            // Keep its initialization in the graph and avoid publishing it to eager users.
+            return torch::zeros({cold_capture_blocks, mega_gate_layout::kScoreBarrierLineBytes},
+                                options.dtype(torch::kByte));
+        }
         score_barriers = torch::zeros({mega_gate_layout::kNumMaxTokenBlocks, mega_gate_layout::kScoreBarrierLineBytes},
                                       options.dtype(torch::kByte));
     }
@@ -174,11 +184,25 @@ bf16_mega_gate(const torch::Tensor& x,
     DG_HOST_ASSERT(num_tokens <= static_cast<int>(layout::mega_gate::kNumMaxTokens));
 
     const auto arch_major = jit->device.get_arch_major();
-    DG_HOST_ASSERT(arch_major == 10);
+    DG_HOST_ASSERT(arch_major == 9 or arch_major == 10);
+    const auto num_aligned_experts = align(num_routed_experts, static_cast<int>(mega_gate_layout::kExpertAlignment));
+    if (arch_major == 9) {
+        const auto config = get_sm90_bf16_mega_gate_config(num_tokens, hidden, num_routed_experts, runtime->get_num_sms());
+        const auto num_token_blocks = ceil_div(num_tokens, config.block_tokens);
+        const auto num_scratch_bytes = mega_gate_layout::Workspace<>::get_num_scratch_bytes(
+            num_token_blocks, config.num_split_k, config.block_tokens, num_aligned_experts);
+        const auto scratch = torch::empty({static_cast<int64_t>(num_scratch_bytes)}, x.options().dtype(torch::kByte));
+        const auto score_barriers = get_score_barriers(x.options(), num_token_blocks);
+        sm90_bf16_mega_gate(x, weight, bias, image_bias, image_token_mask, mask, fix_routing_mask,
+                            to_physical_map, logical_count, topk_idx, unmapped_topk_idx, topk_weights,
+                            force_random, num_tokens, hidden, num_routed_experts, num_topk,
+                            effective_num_shared_experts, routed_scaling_factor, ep_rank, scoring_type,
+                            config, scratch, score_barriers);
+        return {topk_idx, topk_weights};
+    }
     const auto config = get_sm100_bf16_mega_gate_config(num_tokens, hidden, num_routed_experts,
                                                         runtime->get_num_sms(), bias.has_value(),
                                                         image_token_mask.has_value(), to_physical_map.has_value());
-    const auto num_aligned_experts = align(num_routed_experts, static_cast<int>(mega_gate_layout::kExpertAlignment));
     const auto num_token_blocks = ceil_div(num_tokens, config.block_tokens);
     const auto num_scratch_bytes = mega_gate_layout::Workspace<>::get_num_scratch_bytes(num_token_blocks, config.num_split_k,
                                                                                         config.block_tokens, num_aligned_experts);
@@ -199,6 +223,13 @@ static std::map<std::string, int64_t> get_bf16_mega_gate_config(const int& num_t
     DG_HOST_ASSERT(num_routed_experts > 0 and num_routed_experts <= 512 and num_routed_experts % 4 == 0);
     DG_HOST_ASSERT(num_topk > 0 and num_topk <= num_routed_experts and num_topk <= 32);
     const auto num_device_sms = runtime->get_num_sms();
+    if (jit->device.get_arch_major() == 9) {
+        const auto config = get_sm90_bf16_mega_gate_config(num_tokens, hidden, num_routed_experts, num_device_sms);
+        return {{"block_tokens", config.block_tokens}, {"num_mma_ctas", 1},
+                {"num_split_k", config.num_split_k}, {"num_expert_groups", config.num_expert_groups},
+                {"num_gate_warpgroups", config.num_threads / 128},
+                {"num_sms", std::min(num_device_sms, config.num_ctas)}};
+    }
     const auto config = get_sm100_bf16_mega_gate_config(num_tokens, hidden, num_routed_experts,
                                                         num_device_sms, true, true, true);
     std::map<std::string, int64_t> result;

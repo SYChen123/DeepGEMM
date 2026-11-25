@@ -1,0 +1,227 @@
+diff --git a/python/sglang/srt/environ.py b/python/sglang/srt/environ.py
+--- a/python/sglang/srt/environ.py
++++ b/python/sglang/srt/environ.py
+@@ -1326,6 +1326,7 @@
+     # DeepGEMM Mega MoE
+     # ===================================================================
+     SGLANG_OPT_DEEPGEMM_MEGA_MOE_NUM_MAX_TOKENS_PER_RANK = EnvInt(8192)
++    SGLANG_OPT_DEEPGEMM_MEGA_GATE = EnvBool(False)
+     # Blackwell MegaMoE uses a whole-grid software barrier. Keep a small
+     # residency margin so every cluster can launch beside other streams.
+     SGLANG_OPT_DEEPGEMM_MEGA_MOE_RESERVED_SMS = EnvInt(2)
+diff --git a/python/sglang/srt/layers/moe/mega_moe.py b/python/sglang/srt/layers/moe/mega_moe.py
+--- a/python/sglang/srt/layers/moe/mega_moe.py
++++ b/python/sglang/srt/layers/moe/mega_moe.py
+@@ -27,6 +27,7 @@
+ from sglang.srt.eplb.expert_location_dispatch import ExpertLocationDispatchInfo
+ from sglang.srt.layers.attention.dsa.utils import is_dsa_enable_prefill_cp
+ from sglang.srt.layers.dp_attention import get_dp_global_num_tokens
++from sglang.srt.layers.moe.mega_gate_sm90 import try_run_sm90_mega_gate
+ from sglang.srt.layers.moe.mega_moe_sm90 import (
+     is_sm90_fp4_mega_moe_available,
+     is_sm90_fp8_mega_moe_available,
+@@ -289,33 +289,39 @@
+-    if num_tokens > 0:
+-        router_logits = moe.gate(hidden_states, forward_batch=forward_batch)
+-        topk_kwargs = {"input_ids": input_ids_global} if moe.is_hash else {}
+-        num_token_non_padded = (
+-            forward_batch.moe_num_token_non_padded()
+-            if forward_batch is not None
+-            else None
+-        )
+-        dispatch_info = ExpertLocationDispatchInfo.init_new(layer_id=moe.layer_id)
+-        if (
+-            not moe.is_hash
+-            and getattr(moe.gate, "e_score_correction_bias_vl", None) is not None
+-        ):
+-            topk_output = vision_topk(
+-                moe,
+-                router_logits,
+-                input_ids_global,
+-                num_token_non_padded=num_token_non_padded,
+-                expert_location_dispatch_info=dispatch_info,
+-            )
+-        else:
+-            topk_output = moe.topk(
+-                hidden_states,
+-                router_logits,
+-                num_token_non_padded=num_token_non_padded,
+-                expert_location_dispatch_info=dispatch_info,
+-                **topk_kwargs,
+-            )
+-        topk_ids = topk_output.topk_ids
+-        topk_weights = topk_output.topk_weights
++    if num_tokens > 0:
++        num_token_non_padded = (
++            forward_batch.moe_num_token_non_padded()
++            if forward_batch is not None
++            else None
++        )
++        dispatch_info = ExpertLocationDispatchInfo.init_new(layer_id=moe.layer_id)
++        routing = try_run_sm90_mega_gate(
++            moe, hidden_states, input_ids_global, num_token_non_padded, dispatch_info, forward_batch
++        )
++        if routing is not None:
++            topk_ids, topk_weights = routing
++        else:
++            router_logits = moe.gate(hidden_states, forward_batch=forward_batch)
++            topk_kwargs = {"input_ids": input_ids_global} if moe.is_hash else {}
++            if (
++                not moe.is_hash
++                and getattr(moe.gate, "e_score_correction_bias_vl", None) is not None
++            ):
++                topk_output = vision_topk(
++                    moe,
++                    router_logits,
++                    input_ids_global,
++                    num_token_non_padded=num_token_non_padded,
++                    expert_location_dispatch_info=dispatch_info,
++                )
++            else:
++                topk_output = moe.topk(
++                    hidden_states,
++                    router_logits,
++                    num_token_non_padded=num_token_non_padded,
++                    expert_location_dispatch_info=dispatch_info,
++                    **topk_kwargs,
++                )
++            topk_ids = topk_output.topk_ids
++            topk_weights = topk_output.topk_weights
+     else:
+         topk_ids = None
+         topk_weights = None
+diff --git a/python/sglang/srt/layers/moe/mega_gate_sm90.py b/python/sglang/srt/layers/moe/mega_gate_sm90.py
+new file mode 100644
+--- /dev/null
++++ b/python/sglang/srt/layers/moe/mega_gate_sm90.py
+@@ -0,0 +1,130 @@
++"""Opt-in Hopper gate for the DeepSeek-V4.1 MegaMoE route."""
++
++import torch
++
++from sglang.srt.environ import envs
++from sglang.srt.eplb.expert_distribution import get_global_expert_distribution_recorder
++from sglang.srt.layers.moe.topk import TopKConfig, _post_process_topk_ids
++from sglang.srt.models.deepseek_common.utils import _device_sm
++from sglang.srt.runtime_context import get_exec, get_forward
++
++
++def try_run_sm90_mega_gate(
++    moe, hidden_states, input_ids, num_token_non_padded, dispatch_info, forward_batch
++):
++    if (
++        not envs.SGLANG_OPT_DEEPGEMM_MEGA_GATE.get()
++        or _device_sm != 90
++        or forward_batch is None
++        or moe.config.model_type != "deepseek_v41"
++        or moe.num_fused_shared_experts
++        or moe.topk.enable_waterfill
++        or (dispatch_info is not None and dispatch_info.ep_dispatch_algorithm in ("lp", "fake"))
++        or envs.SGLANG_SIMULATE_UNIFORM_EXPERTS.get()
++        or envs.SGLANG_SIMULATE_ROUND_ROBIN_EXPERTS.get()
++        or get_exec().deterministic.enable_deterministic_inference
++        or getattr(get_forward(), "sp_active", False)
++    ):
++        return None
++    mode = forward_batch.forward_mode
++    if not (mode.is_decode() or mode.is_extend()):
++        return None
++
++    weight = moe.gate.weight
++    experts, hidden = weight.shape
++    rows = hidden_states.shape[0]
++    top_k = moe.config.num_experts_per_tok
++    if not (
++        0 < rows <= envs.SGLANG_OPT_DEEPGEMM_MEGA_MOE_NUM_MAX_TOKENS_PER_RANK.get()
++        and hidden_states.dtype == weight.dtype == torch.bfloat16
++        and hidden_states.is_contiguous()
++        and weight.is_contiguous()
++        and hidden_states.shape[1] == hidden
++        and hidden % 256 == 0
++        and 0 < experts <= 512
++        and experts % 4 == 0
++        and 1 < top_k <= min(experts, 32)
++    ):
++        return None
++
++    bias = moe.gate.e_score_correction_bias
++    image_bias = moe.gate.e_score_correction_bias_vl if not moe.is_hash and input_ids is not None else None
++    for correction in (bias, image_bias):
++        if correction is not None and not (
++            correction.dtype == torch.float32
++            and correction.is_contiguous()
++            and correction.shape == (experts,)
++        ):
++            return None
++    if moe.is_hash:
++        if (
++            input_ids is None
++            or moe.topk.score_func != "sqrtsoftplus"
++            or moe.topk.topk != top_k
++            or moe.topk.num_fused_shared_experts
++        ):
++            return None
++        config = TopKConfig(
++            top_k=top_k,
++            routed_scaling_factor=moe.topk.routed_scaling_factor,
++            apply_routed_scaling_factor_on_output=moe.topk.apply_routed_scaling_factor_on_output,
++            allow_routed_experts_capture=False,
++        )
++    else:
++        config = moe.topk.topk_config
++        if not (
++            config.scoring_func == "sqrtsoftplus"
++            and config.sqrtsoftplus_log1p
++            and config.renormalize
++            and config.top_k == top_k
++            and not config.num_fused_shared_experts
++            and not config.use_grouped_topk
++            and config.custom_routing_function is None
++            and not config.torch_native
++        ):
++            return None
++
++    import deep_gemm
++
++    gate = getattr(deep_gemm, "bf16_mega_gate", None)
++    if gate is None:
++        return None
++    valid = None
++    if num_token_non_padded is not None:
++        valid = torch.arange(rows, dtype=torch.int32, device=hidden_states.device) < num_token_non_padded
++    image = None if image_bias is None else input_ids == moe.config.image_token_id
++    fixed_ids = fixed_mask = None
++    if moe.is_hash:
++        safe_ids = input_ids if valid is None else torch.where(valid, input_ids, 0)
++        fixed_ids = moe.topk.tid2eid[safe_ids].to(torch.int64)
++        fixed_mask = valid if valid is not None else torch.ones(rows, dtype=torch.bool, device=hidden_states.device)
++    scale = float(config.routed_scaling_factor) if config.apply_routed_scaling_factor_on_output else 1.0
++    ids, weights = gate(
++        hidden_states,
++        weight,
++        top_k,
++        False,
++        0,
++        scale,
++        0,
++        "sqrtsoftplus",
++        mask=valid,
++        bias=bias,
++        image_bias=image_bias,
++        image_token_mask=image,
++        fix_routing_mask=fixed_mask,
++        unmapped_topk_idx=fixed_ids,
++    )
++    ids, weights, recorder_ids = _post_process_topk_ids(
++        ids.to(torch.int32),
++        weights,
++        config,
++        hidden_states.new_empty((0, experts)),
++        moe.layer_id,
++        num_token_non_padded=num_token_non_padded,
++        expert_location_dispatch_info=dispatch_info,
++        padded_rows_masked=True,
++    )
++    if recorder_ids is not None:
++        get_global_expert_distribution_recorder().on_select_experts(topk_ids=recorder_ids)
++    return ids, weights

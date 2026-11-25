@@ -9,6 +9,7 @@ namespace deep_gemm::layout::mega_gate {
 
 // Kernel geometry and alignments
 static constexpr uint32_t BLOCK_K = 64;
+static constexpr uint32_t kSm90BlockTokens = 64;
 static constexpr uint32_t kNumNonEpilogueThreads = 128;
 static constexpr uint32_t kNumEpilogueStages = 2;
 static constexpr uint32_t kNumMaxBlockTokens = 256;
